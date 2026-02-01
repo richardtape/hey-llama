@@ -8,11 +8,14 @@ final class AppState: ObservableObject {
     @Published private(set) var statusIcon: String = "waveform.slash"
     @Published private(set) var statusText: String = "Idle"
     @Published private(set) var audioLevel: Float = 0
+    @Published private(set) var lastTranscription: String?
+    @Published private(set) var lastCommand: String?
+    @Published private(set) var isModelLoading: Bool = false
 
     private var cancellables = Set<AnyCancellable>()
 
-    init() {
-        coordinator = AssistantCoordinator()
+    init(coordinator: AssistantCoordinator? = nil) {
+        self.coordinator = coordinator ?? AssistantCoordinator()
         setupBindings()
     }
 
@@ -28,6 +31,18 @@ final class AppState: ObservableObject {
         coordinator.$audioLevel
             .receive(on: DispatchQueue.main)
             .assign(to: &$audioLevel)
+
+        coordinator.$lastTranscription
+            .receive(on: DispatchQueue.main)
+            .assign(to: &$lastTranscription)
+
+        coordinator.$lastCommand
+            .receive(on: DispatchQueue.main)
+            .assign(to: &$lastCommand)
+
+        coordinator.$isModelLoading
+            .receive(on: DispatchQueue.main)
+            .assign(to: &$isModelLoading)
     }
 
     func start() async {

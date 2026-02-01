@@ -4,8 +4,12 @@ import AVFoundation
 class AppDelegate: NSObject, NSApplicationDelegate {
     private var appState: AppState?
 
+    /// Check if we're running in a test environment
+    private var isRunningTests: Bool {
+        ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
+    }
+
     func applicationDidFinishLaunching(_ notification: Notification) {
-        // Hide dock icon - menu bar app only
         NSApp.setActivationPolicy(.accessory)
     }
 
@@ -17,14 +21,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         self.appState = state
 
         // Skip audio initialization during tests
-        guard !isRunningTests else { return }
+        guard !isRunningTests else {
+            print("Running in test environment - skipping audio initialization")
+            return
+        }
 
         Task {
             await state.start()
         }
-    }
-
-    private var isRunningTests: Bool {
-        NSClassFromString("XCTestCase") != nil
     }
 }

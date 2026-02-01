@@ -13,14 +13,43 @@ struct MenuBarView: View {
 
             Divider()
 
+            // Status section
             HStack {
                 Image(systemName: appState.statusIcon)
-                Text(appState.statusText)
+                if appState.isModelLoading {
+                    Text("Loading model...")
+                } else {
+                    Text(appState.statusText)
+                }
             }
             .foregroundColor(statusColor)
 
-            AudioLevelIndicator(level: appState.audioLevel)
-                .frame(height: 4)
+            // Transcription section
+            if let transcription = appState.lastTranscription, !transcription.isEmpty {
+                Divider()
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Last heard:")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    Text(transcription)
+                        .font(.caption)
+                        .lineLimit(3)
+                }
+            }
+
+            // Command section
+            if let command = appState.lastCommand, !command.isEmpty {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Command:")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    Text(command)
+                        .font(.caption)
+                        .foregroundColor(.green)
+                        .lineLimit(2)
+                }
+            }
 
             Divider()
 
@@ -38,10 +67,14 @@ struct MenuBarView: View {
             .keyboardShortcut("q", modifiers: .command)
         }
         .padding(8)
-        .frame(width: 200)
+        .frame(width: 220)
     }
 
     private var statusColor: Color {
+        if appState.isModelLoading {
+            return .orange
+        }
+
         switch appState.statusText {
         case "Capturing...":
             return .green
@@ -51,33 +84,6 @@ struct MenuBarView: View {
             return .red
         default:
             return .secondary
-        }
-    }
-}
-
-struct AudioLevelIndicator: View {
-    let level: Float
-
-    var body: some View {
-        GeometryReader { geometry in
-            ZStack(alignment: .leading) {
-                RoundedRectangle(cornerRadius: 2)
-                    .fill(Color.gray.opacity(0.3))
-
-                RoundedRectangle(cornerRadius: 2)
-                    .fill(levelColor)
-                    .frame(width: geometry.size.width * CGFloat(min(level * 10, 1.0)))
-            }
-        }
-    }
-
-    private var levelColor: Color {
-        if level > 0.1 {
-            return .green
-        } else if level > 0.05 {
-            return .yellow
-        } else {
-            return .gray
         }
     }
 }
