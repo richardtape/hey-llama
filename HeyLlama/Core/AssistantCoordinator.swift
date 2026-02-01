@@ -9,20 +9,32 @@ final class AssistantCoordinator: ObservableObject {
     @Published private(set) var lastTranscription: String?
     @Published private(set) var lastCommand: String?
     @Published private(set) var isModelLoading: Bool = false
+    @Published private(set) var currentSpeaker: Speaker?
+    @Published private(set) var requiresOnboarding: Bool = true
 
     private let audioEngine: AudioEngine
     private let vadService: VADService
     private let audioBuffer: AudioBuffer
     private let sttService: any STTServiceProtocol
+    private let speakerService: any SpeakerServiceProtocol
     private let commandProcessor: CommandProcessor
+    private let speakerStore: SpeakerStore
     private var cancellables = Set<AnyCancellable>()
 
-    init(sttService: (any STTServiceProtocol)? = nil) {
+    init(
+        sttService: (any STTServiceProtocol)? = nil,
+        speakerService: (any SpeakerServiceProtocol)? = nil
+    ) {
         self.audioEngine = AudioEngine()
         self.vadService = VADService()
         self.audioBuffer = AudioBuffer(maxSeconds: 15)
         self.sttService = sttService ?? STTService()
+        self.speakerService = speakerService ?? SpeakerService()
         self.commandProcessor = CommandProcessor()
+        self.speakerStore = SpeakerStore()
+
+        // Check if onboarding is required
+        self.requiresOnboarding = !speakerStore.hasSpeakers()
 
         setupBindings()
     }
@@ -42,7 +54,24 @@ final class AssistantCoordinator: ObservableObject {
             .assign(to: &$audioLevel)
     }
 
+    // MARK: - Lifecycle
+
+    func checkOnboardingRequired() -> Bool {
+        requiresOnboarding = !speakerStore.hasSpeakers()
+        return requiresOnboarding
+    }
+
+    func completeOnboarding() {
+        requiresOnboarding = false
+    }
+
     func start() async {
+        // Don't start if onboarding is required
+        guard !requiresOnboarding else {
+            print("Cannot start: onboarding required")
+            return
+        }
+
         let granted = await Permissions.requestMicrophoneAccess()
 
         guard granted else {
@@ -50,18 +79,28 @@ final class AssistantCoordinator: ObservableObject {
             return
         }
 
-        // Load STT model before starting audio
         isModelLoading = true
         state = .idle
 
+        // Load STT model
         do {
             try await sttService.loadModel()
-            isModelLoading = false
         } catch {
             isModelLoading = false
             state = .error("Failed to load speech model: \(error.localizedDescription)")
             return
         }
+
+        // Load speaker identification model
+        do {
+            try await speakerService.loadModel()
+        } catch {
+            isModelLoading = false
+            state = .error("Failed to load speaker model: \(error.localizedDescription)")
+            return
+        }
+
+        isModelLoading = false
 
         audioEngine.start()
         isListening = true
@@ -76,7 +115,33 @@ final class AssistantCoordinator: ObservableObject {
         audioBuffer.clear()
         lastTranscription = nil
         lastCommand = nil
+        currentSpeaker = nil
     }
+
+    // MARK: - Speaker Management
+
+    func enrollSpeaker(name: String, samples: [AudioChunk]) async throws -> Speaker {
+        let speaker = try await speakerService.enroll(name: name, samples: samples)
+        requiresOnboarding = false
+        return speaker
+    }
+
+    func removeSpeaker(_ speaker: Speaker) async {
+        do {
+            try await speakerService.remove(speaker)
+            // Check if we need onboarding again
+            let speakers = await speakerService.enrolledSpeakers
+            requiresOnboarding = speakers.isEmpty
+        } catch {
+            print("Failed to remove speaker: \(error)")
+        }
+    }
+
+    func getEnrolledSpeakers() async -> [Speaker] {
+        await speakerService.enrolledSpeakers
+    }
+
+    // MARK: - Audio Processing
 
     private func processAudioChunk(_ chunk: AudioChunk) async {
         audioBuffer.append(chunk)
@@ -94,7 +159,6 @@ final class AssistantCoordinator: ObservableObject {
         case (.capturing, .speechEnd):
             state = .processing
             let utterance = audioBuffer.getUtteranceSinceSpeechStart()
-
             await processUtterance(utterance, source: chunk.source)
 
         default:
@@ -105,13 +169,19 @@ final class AssistantCoordinator: ObservableObject {
     private func processUtterance(_ audio: AudioChunk, source: AudioSource) async {
         print("Processing utterance: \(String(format: "%.2f", audio.duration))s")
 
+        // Run STT and Speaker ID in parallel
+        async let transcriptionTask = sttService.transcribe(audio)
+        async let speakerTask = speakerService.identify(audio)
+
         do {
-            let result = try await sttService.transcribe(audio)
+            let (result, speaker) = try await (transcriptionTask, speakerTask)
 
-            // Update UI with transcription
+            // Update UI with transcription and speaker
             lastTranscription = result.text
+            currentSpeaker = speaker
 
-            print("Transcription: \"\(result.text)\" (confidence: \(String(format: "%.2f", result.confidence)), \(result.processingTimeMs)ms)")
+            let speakerName = speaker?.name ?? "Guest"
+            print("[\(speakerName)] Transcription: \"\(result.text)\" (confidence: \(String(format: "%.2f", result.confidence)), \(result.processingTimeMs)ms)")
 
             // Check for wake word and extract command
             if let commandText = commandProcessor.extractCommand(from: result.text) {
@@ -122,6 +192,7 @@ final class AssistantCoordinator: ObservableObject {
                 let command = Command(
                     rawText: result.text,
                     commandText: commandText,
+                    speaker: speaker,
                     source: source,
                     confidence: result.confidence
                 )
@@ -133,28 +204,11 @@ final class AssistantCoordinator: ObservableObject {
             }
 
         } catch {
-            print("Transcription error: \(error)")
-            lastTranscription = "[Transcription failed]"
+            print("Processing error: \(error)")
+            lastTranscription = "[Processing failed]"
         }
 
         // Return to listening
         state = .listening
-    }
-
-    // MARK: - Speaker Enrollment (stub - full implementation in Task 11)
-
-    /// Enrolls a speaker with the given name and audio samples.
-    /// - Parameters:
-    ///   - name: The speaker's name
-    ///   - samples: Audio samples recorded during enrollment
-    /// - Returns: The enrolled Speaker
-    /// - Note: This is a stub implementation. Full speaker service integration in Task 11.
-    func enrollSpeaker(name: String, samples: [AudioChunk]) async throws -> Speaker {
-        // Stub implementation - creates speaker with mock embedding
-        // Real implementation will use SpeakerService to extract embeddings
-        let mockVector = [Float](repeating: 0.1, count: 256)
-        let embedding = SpeakerEmbedding(vector: mockVector, modelVersion: "stub-v1")
-        let speaker = Speaker(name: name, embedding: embedding)
-        return speaker
     }
 }
