@@ -13,7 +13,7 @@ struct SettingsView: View {
                     Label("Audio", systemImage: "waveform")
                 }
 
-            Text("Speakers settings coming in Milestone 3")
+            SpeakersSettingsView()
                 .tabItem {
                     Label("Speakers", systemImage: "person.2")
                 }
@@ -23,7 +23,7 @@ struct SettingsView: View {
                     Label("API", systemImage: "network")
                 }
         }
-        .frame(width: 450, height: 250)
+        .frame(width: 500, height: 350)
     }
 }
 
