@@ -140,4 +140,21 @@ final class AssistantCoordinator: ObservableObject {
         // Return to listening
         state = .listening
     }
+
+    // MARK: - Speaker Enrollment (stub - full implementation in Task 11)
+
+    /// Enrolls a speaker with the given name and audio samples.
+    /// - Parameters:
+    ///   - name: The speaker's name
+    ///   - samples: Audio samples recorded during enrollment
+    /// - Returns: The enrolled Speaker
+    /// - Note: This is a stub implementation. Full speaker service integration in Task 11.
+    func enrollSpeaker(name: String, samples: [AudioChunk]) async throws -> Speaker {
+        // Stub implementation - creates speaker with mock embedding
+        // Real implementation will use SpeakerService to extract embeddings
+        let mockVector = [Float](repeating: 0.1, count: 256)
+        let embedding = SpeakerEmbedding(vector: mockVector, modelVersion: "stub-v1")
+        let speaker = Speaker(name: name, embedding: embedding)
+        return speaker
+    }
 }
