@@ -14,7 +14,7 @@ struct TranscriptionResult: Equatable, Sendable {
     let processingTimeMs: Int
     let words: [WordTiming]?
 
-    init(
+    nonisolated init(
         text: String,
         confidence: Float,
         language: String,

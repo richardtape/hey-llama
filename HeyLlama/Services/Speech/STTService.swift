@@ -90,7 +90,7 @@ actor STTService: STTServiceProtocol {
             return TranscriptionResult(
                 text: result.text.trimmingCharacters(in: .whitespacesAndNewlines),
                 confidence: avgConfidence,
-                language: result.language ?? "en",
+                language: result.language,
                 processingTimeMs: processingTimeMs,
                 words: wordTimings?.isEmpty == false ? wordTimings : nil
             )
