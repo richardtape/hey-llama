@@ -1,24 +1,46 @@
 import Foundation
 
 final class CommandProcessor {
-    private let wakePhrase: String
-    private let wakePhraseLength: Int
+    private let wakePhrases: [String]
 
-    init(wakePhrase: String = "hey llama") {
-        self.wakePhrase = wakePhrase.lowercased()
-        self.wakePhraseLength = wakePhrase.count
+    /// Initialize with a primary wake phrase and optional alternatives
+    /// Default includes common transcription variants of "hey llama"
+    init(wakePhrase: String = "hey llama", alternatives: [String]? = nil) {
+        let primary = wakePhrase.lowercased()
+        let alts = alternatives ?? Self.defaultAlternatives(for: primary)
+        self.wakePhrases = [primary] + alts.map { $0.lowercased() }
     }
 
-    /// Check if text contains the wake word
+    /// Common transcription variants for known wake phrases
+    private static func defaultAlternatives(for phrase: String) -> [String] {
+        switch phrase {
+        case "hey llama":
+            return ["hey lama", "hey llamma", "hey lamma"]
+        default:
+            return []
+        }
+    }
+
+    /// Check if text contains any wake phrase variant
     func containsWakeWord(in text: String) -> Bool {
-        text.lowercased().contains(wakePhrase)
+        let lowercased = text.lowercased()
+        return wakePhrases.contains { lowercased.contains($0) }
     }
 
     /// Extract command text after wake phrase, or nil if not found/empty
     func extractCommand(from text: String) -> String? {
         let lowercased = text.lowercased()
 
-        guard let range = lowercased.range(of: wakePhrase) else {
+        // Find the first matching wake phrase
+        var matchRange: Range<String.Index>?
+        for phrase in wakePhrases {
+            if let range = lowercased.range(of: phrase) {
+                matchRange = range
+                break
+            }
+        }
+
+        guard let range = matchRange else {
             return nil
         }
 
