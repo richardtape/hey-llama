@@ -1,6 +1,6 @@
 import Foundation
 
-enum AssistantState: Equatable {
+enum AssistantState: Equatable, Sendable {
     case idle
     case listening
     case capturing

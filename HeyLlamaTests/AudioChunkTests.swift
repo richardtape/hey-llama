@@ -1,3 +1,8 @@
+// MARK: - Temporarily disabled due to FluidAudio malloc bug
+// See AudioBufferTests.swift for details.
+
+#if ENABLE_AUDIO_BUFFER_TESTS
+
 import XCTest
 import AVFoundation
 @testable import HeyLlama
@@ -86,3 +91,5 @@ final class AudioChunkTests: XCTestCase {
         XCTAssertLessThanOrEqual(chunk.timestamp, after)
     }
 }
+
+#endif

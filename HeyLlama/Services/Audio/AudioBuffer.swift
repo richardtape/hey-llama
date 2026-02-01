@@ -1,11 +1,11 @@
 import Foundation
 
-final class AudioBuffer {
+final class AudioBuffer: @unchecked Sendable {
     private var buffer: [Float] = []
     private let maxSamples: Int
     private let sampleRate: Int = 16000
     private var speechStartIndex: Int?
-    private let lock = NSLock()
+    private let queue = DispatchQueue(label: "com.heyllama.audiobuffer", attributes: .concurrent)
 
     /// Number of samples for 300ms lookback
     private var lookbackSamples: Int {
@@ -13,15 +13,15 @@ final class AudioBuffer {
     }
 
     var sampleCount: Int {
-        lock.lock()
-        defer { lock.unlock() }
-        return buffer.count
+        queue.sync {
+            buffer.count
+        }
     }
 
     var hasSpeechStart: Bool {
-        lock.lock()
-        defer { lock.unlock() }
-        return speechStartIndex != nil
+        queue.sync {
+            speechStartIndex != nil
+        }
     }
 
     init(maxSeconds: Int = 15) {
@@ -29,45 +29,41 @@ final class AudioBuffer {
     }
 
     func append(_ chunk: AudioChunk) {
-        lock.lock()
-        defer { lock.unlock() }
+        queue.sync(flags: .barrier) {
+            buffer.append(contentsOf: chunk.samples)
 
-        buffer.append(contentsOf: chunk.samples)
+            if buffer.count > maxSamples {
+                let excess = buffer.count - maxSamples
+                buffer.removeFirst(excess)
 
-        if buffer.count > maxSamples {
-            let excess = buffer.count - maxSamples
-            buffer.removeFirst(excess)
-
-            if let startIndex = speechStartIndex {
-                speechStartIndex = max(0, startIndex - excess)
+                if let startIndex = speechStartIndex {
+                    speechStartIndex = max(0, startIndex - excess)
+                }
             }
         }
     }
 
     func markSpeechStart() {
-        lock.lock()
-        defer { lock.unlock() }
-
-        speechStartIndex = max(0, buffer.count - lookbackSamples)
+        queue.sync(flags: .barrier) {
+            speechStartIndex = max(0, buffer.count - lookbackSamples)
+        }
     }
 
     func getUtteranceSinceSpeechStart() -> AudioChunk {
-        lock.lock()
-        defer { lock.unlock() }
+        queue.sync(flags: .barrier) {
+            let startIndex = speechStartIndex ?? 0
+            let samples = Array(buffer[startIndex...])
 
-        let startIndex = speechStartIndex ?? 0
-        let samples = Array(buffer[startIndex...])
+            speechStartIndex = nil
 
-        speechStartIndex = nil
-
-        return AudioChunk(samples: samples)
+            return AudioChunk(samples: samples)
+        }
     }
 
     func clear() {
-        lock.lock()
-        defer { lock.unlock() }
-
-        buffer.removeAll()
-        speechStartIndex = nil
+        queue.sync(flags: .barrier) {
+            buffer.removeAll()
+            speechStartIndex = nil
+        }
     }
 }

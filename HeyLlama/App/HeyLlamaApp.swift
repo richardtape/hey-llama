@@ -3,23 +3,27 @@ import SwiftUI
 @main
 struct HeyLlamaApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
+    @StateObject private var appState = AppState()
 
     var body: some Scene {
-        // Menu bar presence
         MenuBarExtra {
             MenuBarView()
+                .environmentObject(appState)
+                .onAppear {
+                    appDelegate.setAppState(appState)
+                }
         } label: {
-            Image(systemName: "waveform")
+            Image(systemName: appState.statusIcon)
         }
 
-        // Settings window (opened via Preferences menu item)
         Settings {
             SettingsView()
+                .environmentObject(appState)
         }
 
-        // Enrollment window (opens on demand)
         Window("Speaker Enrollment", id: "enrollment") {
             EnrollmentView()
+                .environmentObject(appState)
         }
     }
 }

@@ -2,26 +2,29 @@ import AppKit
 import AVFoundation
 
 class AppDelegate: NSObject, NSApplicationDelegate {
+    private var appState: AppState?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Hide dock icon - menu bar app only
         NSApp.setActivationPolicy(.accessory)
-
-        // Request permissions on launch
-        Task {
-            await requestMicrophonePermission()
-        }
     }
 
     func applicationWillTerminate(_ notification: Notification) {
-        // Cleanup placeholder - will be implemented in later milestones
+        appState?.shutdown()
     }
 
-    private func requestMicrophonePermission() async {
-        let granted = await AVCaptureDevice.requestAccess(for: .audio)
-        if !granted {
-            // User denied - they'll need to enable in System Settings
-            print("Microphone permission denied")
+    func setAppState(_ state: AppState) {
+        self.appState = state
+
+        // Skip audio initialization during tests
+        guard !isRunningTests else { return }
+
+        Task {
+            await state.start()
         }
+    }
+
+    private var isRunningTests: Bool {
+        NSClassFromString("XCTestCase") != nil
     }
 }

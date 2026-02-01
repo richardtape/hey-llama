@@ -1,9 +1,10 @@
 import SwiftUI
 
 struct MenuBarView: View {
+    @EnvironmentObject var appState: AppState
+
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
-            // App info
             Text("Hey Llama")
                 .font(.headline)
             Text("v0.1.0")
@@ -12,16 +13,17 @@ struct MenuBarView: View {
 
             Divider()
 
-            // Status (placeholder - will be dynamic in M1)
             HStack {
-                Image(systemName: "waveform")
-                Text("Idle")
+                Image(systemName: appState.statusIcon)
+                Text(appState.statusText)
             }
-            .foregroundColor(.secondary)
+            .foregroundColor(statusColor)
+
+            AudioLevelIndicator(level: appState.audioLevel)
+                .frame(height: 4)
 
             Divider()
 
-            // Preferences
             SettingsLink {
                 Text("Preferences...")
             }
@@ -29,8 +31,8 @@ struct MenuBarView: View {
 
             Divider()
 
-            // Quit
             Button("Quit") {
+                appState.shutdown()
                 NSApplication.shared.terminate(nil)
             }
             .keyboardShortcut("q", modifiers: .command)
@@ -38,8 +40,49 @@ struct MenuBarView: View {
         .padding(8)
         .frame(width: 200)
     }
+
+    private var statusColor: Color {
+        switch appState.statusText {
+        case "Capturing...":
+            return .green
+        case "Processing...":
+            return .orange
+        case _ where appState.statusText.hasPrefix("Error"):
+            return .red
+        default:
+            return .secondary
+        }
+    }
+}
+
+struct AudioLevelIndicator: View {
+    let level: Float
+
+    var body: some View {
+        GeometryReader { geometry in
+            ZStack(alignment: .leading) {
+                RoundedRectangle(cornerRadius: 2)
+                    .fill(Color.gray.opacity(0.3))
+
+                RoundedRectangle(cornerRadius: 2)
+                    .fill(levelColor)
+                    .frame(width: geometry.size.width * CGFloat(min(level * 10, 1.0)))
+            }
+        }
+    }
+
+    private var levelColor: Color {
+        if level > 0.1 {
+            return .green
+        } else if level > 0.05 {
+            return .yellow
+        } else {
+            return .gray
+        }
+    }
 }
 
 #Preview {
     MenuBarView()
+        .environmentObject(AppState())
 }

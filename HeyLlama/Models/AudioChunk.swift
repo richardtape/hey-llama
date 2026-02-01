@@ -1,6 +1,6 @@
 import AVFoundation
 
-enum AudioSource: Equatable, Hashable {
+enum AudioSource: Equatable, Hashable, Sendable {
     case localMic
     case satellite(String)
     case iosApp(String)
@@ -17,7 +17,7 @@ enum AudioSource: Equatable, Hashable {
     }
 }
 
-struct AudioChunk {
+struct AudioChunk: Sendable {
     let samples: [Float]
     let sampleRate: Int
     let timestamp: Date
