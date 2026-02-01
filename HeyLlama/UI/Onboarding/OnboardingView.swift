@@ -255,11 +255,13 @@ struct RecordingStepView: View {
 
         // Start a timer to simulate recording (in real implementation, use AudioEngine)
         recordingTimer = Timer.scheduledTimer(withTimeInterval: 3.0, repeats: false) { _ in
-            // Create mock audio sample for now - real implementation will use AudioEngine
-            let mockSamples = [Float](repeating: 0.1, count: 48000) // 3 seconds at 16kHz
-            let chunk = AudioChunk(samples: mockSamples)
-            onboardingState.addRecordedSample(chunk)
-            isCurrentlyRecording = false
+            Task { @MainActor in
+                // Create mock audio sample for now - real implementation will use AudioEngine
+                let mockSamples = [Float](repeating: 0.1, count: 48000) // 3 seconds at 16kHz
+                let chunk = AudioChunk(samples: mockSamples)
+                onboardingState.addRecordedSample(chunk)
+                isCurrentlyRecording = false
+            }
         }
     }
 
