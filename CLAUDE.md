@@ -28,18 +28,22 @@ Read these documents for full context before implementing features.
 - **Networking**: Network.framework (HTTP/WebSocket), Bonjour/mDNS
 - **Requirements**: macOS 14+, Apple Silicon (M1+), Xcode 15+
 
-## Build Commands (When Implementation Exists)
+## Build & Test Workflow
 
-```bash
-# Open project
-open HeyLlama.xcodeproj
+**Important:** The user runs all builds and tests manually in the Xcode application. Claude should **never** run `xcodebuild` CLI commands. Instead, instruct the user with Xcode keyboard shortcuts:
 
-# Build
-xcodebuild build -project HeyLlama.xcodeproj -scheme HeyLlama
+| Action | Xcode Shortcut |
+|--------|----------------|
+| Clean Build Folder | `Cmd+Shift+K` |
+| Build | `Cmd+B` |
+| Run All Tests | `Cmd+U` |
+| Run App | `Cmd+R` |
+| Stop Running | `Cmd+.` |
+| Open Test Navigator | `Cmd+6` |
 
-# Run tests
-xcodebuild test -project HeyLlama.xcodeproj -scheme HeyLlama
-```
+**To run specific tests:** Open Test Navigator (`Cmd+6`), find the test class or method, and click the diamond icon next to it. Alternatively, open the test file and click the diamond in the gutter next to the test.
+
+**To open project:** `open HeyLlama.xcodeproj`
 
 ## Architecture
 
