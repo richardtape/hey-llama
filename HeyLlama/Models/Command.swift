@@ -39,6 +39,13 @@ struct ConversationTurn: Sendable {
         self.content = content
         self.timestamp = Date()
     }
+
+    // Initializer for testing with custom timestamp
+    init(role: ConversationRole, content: String, timestamp: Date) {
+        self.role = role
+        self.content = content
+        self.timestamp = timestamp
+    }
 }
 
 struct CommandContext: Sendable {
