@@ -11,6 +11,7 @@ final class AssistantCoordinator: ObservableObject {
     @Published private(set) var isModelLoading: Bool = false
     @Published private(set) var currentSpeaker: Speaker?
     @Published private(set) var requiresOnboarding: Bool = true
+    @Published private(set) var enrolledSpeakers: [Speaker] = []
 
     private let audioEngine: AudioEngine
     private let vadService: VADService
@@ -127,6 +128,7 @@ final class AssistantCoordinator: ObservableObject {
         }
         
         let speaker = try await speakerService.enroll(name: name, samples: samples)
+        enrolledSpeakers = await speakerService.enrolledSpeakers
         requiresOnboarding = false
         return speaker
     }
@@ -134,9 +136,8 @@ final class AssistantCoordinator: ObservableObject {
     func removeSpeaker(_ speaker: Speaker) async {
         do {
             try await speakerService.remove(speaker)
-            // Check if we need onboarding again
-            let speakers = await speakerService.enrolledSpeakers
-            requiresOnboarding = speakers.isEmpty
+            enrolledSpeakers = await speakerService.enrolledSpeakers
+            requiresOnboarding = enrolledSpeakers.isEmpty
         } catch {
             print("Failed to remove speaker: \(error)")
         }
@@ -144,6 +145,11 @@ final class AssistantCoordinator: ObservableObject {
 
     func getEnrolledSpeakers() async -> [Speaker] {
         await speakerService.enrolledSpeakers
+    }
+    
+    /// Refreshes the enrolled speakers list from the speaker service
+    func refreshEnrolledSpeakers() async {
+        enrolledSpeakers = await speakerService.enrolledSpeakers
     }
 
     // MARK: - Audio Processing

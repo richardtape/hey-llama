@@ -2,18 +2,19 @@ import SwiftUI
 
 struct SpeakersSettingsView: View {
     @EnvironmentObject var appState: AppState
-    @State private var speakers: [Speaker] = []
     @State private var speakerToDelete: Speaker?
     @State private var showDeleteConfirmation = false
-    @State private var isLoading = false
     @Environment(\.openWindow) private var openWindow
+
+    // Directly observe the coordinator's enrolled speakers
+    private var speakers: [Speaker] {
+        appState.coordinator.enrolledSpeakers
+    }
 
     var body: some View {
         Form {
             Section {
-                if isLoading {
-                    ProgressView("Loading speakers...")
-                } else if speakers.isEmpty {
+                if speakers.isEmpty {
                     Text("No speakers enrolled")
                         .foregroundColor(.secondary)
                 } else {
@@ -28,12 +29,6 @@ struct SpeakersSettingsView: View {
                 HStack {
                     Text("Enrolled Speakers")
                     Spacer()
-                    Button(action: loadSpeakers) {
-                        Image(systemName: "arrow.clockwise")
-                    }
-                    .buttonStyle(.borderless)
-                    .help("Refresh speaker list")
-                    
                     Button(action: {
                         openWindow(id: "enrollment")
                     }) {
@@ -46,10 +41,8 @@ struct SpeakersSettingsView: View {
         .formStyle(.grouped)
         .padding()
         .task {
-            await loadSpeakersAsync()
-        }
-        .onAppear {
-            loadSpeakers()
+            // Load speakers on first appearance
+            await appState.coordinator.refreshEnrolledSpeakers()
         }
         .confirmationDialog(
             "Remove Speaker",
@@ -65,22 +58,9 @@ struct SpeakersSettingsView: View {
         }
     }
 
-    private func loadSpeakers() {
-        Task {
-            await loadSpeakersAsync()
-        }
-    }
-    
-    private func loadSpeakersAsync() async {
-        isLoading = true
-        speakers = await appState.coordinator.getEnrolledSpeakers()
-        isLoading = false
-    }
-
     private func removeSpeaker(_ speaker: Speaker) {
         Task {
             await appState.coordinator.removeSpeaker(speaker)
-            await loadSpeakersAsync()
         }
     }
 }
