@@ -12,6 +12,7 @@ final class AppState: ObservableObject {
     @Published private(set) var lastCommand: String?
     @Published private(set) var isModelLoading: Bool = false
     @Published private(set) var currentSpeaker: Speaker?
+    @Published private(set) var enrolledSpeakers: [Speaker] = []
     @Published var requiresOnboarding: Bool = true
     @Published var showOnboarding: Bool = false
 
@@ -51,6 +52,10 @@ final class AppState: ObservableObject {
         coordinator.$currentSpeaker
             .receive(on: DispatchQueue.main)
             .assign(to: &$currentSpeaker)
+
+        coordinator.$enrolledSpeakers
+            .receive(on: DispatchQueue.main)
+            .assign(to: &$enrolledSpeakers)
 
         coordinator.$requiresOnboarding
             .receive(on: DispatchQueue.main)

@@ -6,9 +6,9 @@ struct SpeakersSettingsView: View {
     @State private var showDeleteConfirmation = false
     @Environment(\.openWindow) private var openWindow
 
-    // Directly observe the coordinator's enrolled speakers
+    // Observe the enrolled speakers via AppState (reactive)
     private var speakers: [Speaker] {
-        appState.coordinator.enrolledSpeakers
+        appState.enrolledSpeakers
     }
 
     var body: some View {
