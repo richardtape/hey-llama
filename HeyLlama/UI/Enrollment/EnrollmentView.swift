@@ -43,6 +43,9 @@ struct EnrollmentView: View {
             .padding()
         }
         .frame(width: 450, height: 400)
+        .onAppear {
+            enrollmentState.reset()
+        }
     }
 }
 
@@ -233,14 +236,24 @@ struct EnrollmentRecordingView: View {
     private func startRecording() {
         isPreparing = true
         permissionError = nil
-        
+
         Task {
             let prepared = await recorder.prepare()
             isPreparing = false
-            
+
             if prepared {
                 recorder.startRecording { [self] sample in
+                    // Only add sample if we haven't collected all phrases yet
+                    guard !state.allPhrasesRecorded else {
+                        recorder.cleanup()
+                        return
+                    }
                     state.addRecordedSample(sample)
+
+                    // Stop recording if we just completed all phrases
+                    if state.allPhrasesRecorded {
+                        recorder.cleanup()
+                    }
                 }
             } else {
                 permissionError = recorder.errorMessage ?? "Failed to access microphone"
