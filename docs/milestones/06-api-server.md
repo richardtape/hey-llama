@@ -1,4 +1,4 @@
-# Milestone 5: API Server
+# Milestone 6: API Server
 
 ## Overview
 
@@ -12,7 +12,7 @@ Implement HTTP REST and WebSocket servers to accept commands and audio streams f
 
 ## Prerequisites
 
-- Milestone 4 complete (full voice assistant loop working locally)
+- Milestone 5 complete (tools/skills registry available)
 
 ---
 
@@ -23,7 +23,7 @@ Key design decisions for this milestone:
 - [ ] Confirm HTTP port: 8765
 - [ ] Confirm WebSocket port: 8766 (HTTP port + 1)
 - [ ] Confirm Bonjour service type: `_llama._tcp.local.`
-- [ ] Confirm response modes: api, speaker, both
+- [ ] Confirm response modes: api, speaker, both (speaker mode is future if/when TTS exists)
 - [ ] Confirm authentication: simple token (optional for local network)
 
 ---
@@ -214,8 +214,8 @@ Key design decisions for this milestone:
 ### Handle Response Modes
 
 - [ ] `.api` → return in HTTP response only
-- [ ] `.speaker` → speak through Mac only
-- [ ] `.both` → do both
+- [ ] `.speaker` → (future) speak through Mac only (requires TTS milestone)
+- [ ] `.both` → (future) do both
 - [ ] WebSocket clients always get response message
 
 ### Create APISettingsView
@@ -239,7 +239,7 @@ Key design decisions for this milestone:
 
 ### Test Suite
 
-- [ ] Run all unit tests: `xcodebuild test -scheme HeyLlama`
+- [ ] Run all unit tests in Xcode (`Cmd+U`)
 - [ ] All APIRouter tests pass (GREEN)
 - [ ] All API model tests pass (GREEN)
 - [ ] Previous milestone tests still pass
@@ -283,10 +283,8 @@ curl http://localhost:8765/api/v1/speakers
 
 ### Integration Testing
 
-- [ ] External command triggers spoken response
+- [ ] External command returns text response via API
 - [ ] Response mode "api" returns text only
-- [ ] Response mode "speaker" speaks only
-- [ ] Response mode "both" does both
 
 ### Regression Check
 
@@ -301,7 +299,7 @@ curl http://localhost:8765/api/v1/speakers
 
 ```bash
 git add .
-git commit -m "Milestone 5: API server with HTTP and WebSocket
+git commit -m "Milestone 6: API server with HTTP and WebSocket
 
 - Implement HTTP REST server on port 8765
 - Implement WebSocket server on port 8766
@@ -316,7 +314,7 @@ git commit -m "Milestone 5: API server with HTTP and WebSocket
 
 - [ ] All Phase 5 verification items pass
 - [ ] Code committed to version control
-- [ ] Ready to proceed to [Milestone 6: Settings & Polish](./06-settings-polish.md)
+- [ ] Ready to proceed to [Milestone 7: Settings & Polish](./07-settings-polish.md)
 
 ---
 

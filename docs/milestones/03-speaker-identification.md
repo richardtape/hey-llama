@@ -237,7 +237,7 @@ func testDistanceIsSymmetric()
 
 ### Test Suite
 
-- [ ] Run all unit tests: `xcodebuild test -scheme HeyLlama`
+- [ ] Run all unit tests in Xcode (`Cmd+U`)
 - [ ] All SpeakerEmbedding tests pass (GREEN)
 - [ ] All SpeakerService tests pass (GREEN)
 - [ ] Previous milestone tests still pass

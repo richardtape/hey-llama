@@ -217,7 +217,7 @@ func testClearEmptiesBuffer()
 
 ### Test Suite
 
-- [ ] Run all unit tests: `xcodebuild test -scheme HeyLlama`
+- [ ] Run all unit tests in Xcode (`Cmd+U`)
 - [ ] All AudioBuffer tests pass (GREEN)
 - [ ] All VADService tests pass (GREEN)
 - [ ] All AssistantState tests pass (GREEN)

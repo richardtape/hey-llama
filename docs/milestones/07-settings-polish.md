@@ -1,4 +1,4 @@
-# Milestone 6: Settings & Polish
+# Milestone 7: Settings & Polish
 
 ## Overview
 
@@ -10,9 +10,11 @@ For general project context, see:
 
 Complete the user experience with comprehensive settings, error handling, logging, onboarding flow, and production polish. Prepare the app for daily use.
 
+This milestone does **not** include spoken responses (TTS). That will be a future milestone.
+
 ## Prerequisites
 
-- Milestone 5 complete (API server working)
+- Milestone 6 complete (API server working)
 
 ---
 
@@ -20,11 +22,11 @@ Complete the user experience with comprehensive settings, error handling, loggin
 
 Key design decisions for this milestone:
 
-- [ ] Confirm onboarding flow: permissions → API key → optional enrollment
+- [ ] Confirm onboarding flow: permissions → AI provider setup → optional enrollment → skills/permissions → done
 - [ ] Confirm logging: to file with rotation, keep 7 days
 - [ ] Confirm keyboard shortcut: Cmd+Shift+L to toggle listening
 - [ ] Confirm launch at login: using SMAppService
-- [ ] Confirm error UX: speak errors, show in menu bar
+- [ ] Confirm error UX: show errors in menu bar UI (and optionally notifications)
 
 ---
 
@@ -35,8 +37,8 @@ This milestone focuses on polish and UX. Testing is primarily manual verificatio
 ### Write Error Handling Tests (RED)
 
 - [ ] Test: Microphone permission denied shows appropriate error
-- [ ] Test: Network error during LLM call triggers error speech
-- [ ] Test: Invalid API key triggers specific error message
+- [ ] Test: Network error during LLM call shows appropriate error
+- [ ] Test: Invalid API key (OpenAI-compatible) triggers specific error message
 - [ ] Test: Storage read/write errors handled gracefully
 - [ ] Test: Audio device disconnection handled
 
@@ -58,6 +60,7 @@ This milestone focuses on polish and UX. Testing is primarily manual verificatio
 - [ ] Add "Audio" tab
 - [ ] Add "Speakers" tab
 - [ ] Add "LLM" (or "AI") tab
+- [ ] Add "Skills" tab
 - [ ] Add "API" tab
 - [ ] Add "About" tab
 - [ ] Apply consistent styling
@@ -87,7 +90,7 @@ This milestone focuses on polish and UX. Testing is primarily manual verificatio
 - [ ] Wake phrase text field
 - [ ] Wake word sensitivity slider
 - [ ] "Launch at Login" toggle via `SMAppService`
-- [ ] "Play sounds" toggle for chimes
+- [ ] "Play sounds" toggle (for non-TTS sounds, if any)
 - [ ] "Show notifications" toggle (future)
 
 ### Enhance LLM Settings
@@ -96,7 +99,19 @@ This milestone focuses on polish and UX. Testing is primarily manual verificatio
 - [ ] Temperature slider for creativity
 - [ ] Max tokens configuration
 - [ ] System prompt preview with variable substitution
-- [ ] API key validation before save
+- [ ] Provider settings validation before save (URL/model; API key optional)
+- [ ] Provider-specific UI:
+  - [ ] Apple Intelligence: availability status + enable toggle
+  - [ ] OpenAI-compatible local: base URL, optional API key, model selection, “refresh models” (optional)
+
+### Implement Skills Settings
+
+- [ ] Create `SkillsSettingsView.swift` in `UI/Settings/`
+- [ ] Show list of available skills (registered in app)
+- [ ] Per-skill enabled toggle
+- [ ] Show required permissions per skill (e.g. Reminders)
+- [ ] Show permission status and a “Request Permission” flow where possible
+- [ ] Optional: global toggle “Allow AI to run skills” and “Require confirmation before running”
 
 ### Implement Logging Infrastructure
 
@@ -136,7 +151,6 @@ This milestone focuses on polish and UX. Testing is primarily manual verificatio
 
 - [ ] Catch errors at coordinator level
 - [ ] Map to user-friendly messages
-- [ ] Speak critical errors
 - [ ] Show in menu bar dropdown
 - [ ] Log detailed info
 
@@ -149,10 +163,13 @@ This milestone focuses on polish and UX. Testing is primarily manual verificatio
 
 - [ ] Step 1: Welcome screen with overview
 - [ ] Step 2: Request microphone permission
-- [ ] Step 3: Enter Anthropic API key
+- [ ] Step 3: Choose AI provider:
+  - [ ] Apple Intelligence (on-device) if available
+  - [ ] Local OpenAI-compatible server (URL + model + optional API key)
 - [ ] Step 4: Enroll first speaker (optional, skip button)
-- [ ] Step 5: Test with sample command
-- [ ] Step 6: Complete with tips
+- [ ] Step 5: Enable starter skills (optional) and request any needed permissions (e.g. Reminders)
+- [ ] Step 6: Test with sample commands (time, weather, add reminder)
+- [ ] Step 7: Complete with tips
 
 #### First Launch Detection
 
@@ -168,7 +185,7 @@ This milestone focuses on polish and UX. Testing is primarily manual verificatio
 - [ ] Link to documentation
 - [ ] Link to report issues
 - [ ] Open source licenses
-- [ ] Credits: Anthropic, WhisperKit, FluidAudio
+- [ ] Credits: Apple Intelligence (if used), WhisperKit, FluidAudio
 
 ### Polish Menu Bar UI
 
@@ -271,7 +288,7 @@ This milestone focuses on polish and UX. Testing is primarily manual verificatio
 
 ### Test Suite
 
-- [ ] Run all unit tests: `xcodebuild test -scheme HeyLlama`
+- [ ] Run all unit tests in Xcode (`Cmd+U`)
 - [ ] All error handling tests pass
 - [ ] All config persistence tests pass
 - [ ] All previous milestone tests pass
@@ -282,7 +299,7 @@ This milestone focuses on polish and UX. Testing is primarily manual verificatio
 
 - [ ] Onboarding appears on first launch
 - [ ] Microphone permission flow works
-- [ ] API key entry works
+- [ ] AI provider setup works (Apple Intelligence or local OpenAI-compatible settings)
 - [ ] Optional speaker enrollment works
 - [ ] Test command works
 
@@ -290,9 +307,9 @@ This milestone focuses on polish and UX. Testing is primarily manual verificatio
 
 - [ ] All settings tabs accessible
 - [ ] Audio device selection works
-- [ ] Voice/rate/volume settings work
 - [ ] Wake phrase change works
-- [ ] API key update works
+- [ ] AI provider settings update works
+- [ ] Skills enable/disable works
 - [ ] All settings persist across restart
 
 #### Core Functionality
@@ -301,12 +318,11 @@ This milestone focuses on polish and UX. Testing is primarily manual verificatio
 - [ ] Transcription accurate
 - [ ] Speaker identification accurate
 - [ ] LLM responses appropriate
-- [ ] TTS clear and natural
 
 #### Error Handling
 
-- [ ] Network disconnect: speaks error
-- [ ] Invalid API key: helpful message
+- [ ] Network disconnect: shows error
+- [ ] Invalid API key (OpenAI-compatible): helpful message
 - [ ] Microphone disconnect: recovers
 
 #### System Events
@@ -358,7 +374,7 @@ This milestone focuses on polish and UX. Testing is primarily manual verificatio
 
 ```bash
 git add .
-git commit -m "Milestone 6: Settings and polish for v1.0
+git commit -m "Milestone 7: Settings and polish for v1.0
 
 - Complete settings UI with all tabs
 - Implement audio device selection
@@ -383,4 +399,5 @@ git commit -m "Milestone 6: Settings and polish for v1.0
 
 ## Deliverable
 
-Production-ready v1.0 application with complete settings UI, robust error handling, onboarding flow, and polished user experience. Ready for daily use as a home voice assistant.
+Production-ready v1.0 application with complete settings UI, robust error handling, onboarding flow, and polished user experience. Ready for daily use.
+

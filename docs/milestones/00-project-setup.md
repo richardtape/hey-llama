@@ -74,7 +74,7 @@ Create the following groups in Xcode:
   - [ ] `Speech/`
   - [ ] `Speaker/`
   - [ ] `LLM/`
-  - [ ] `TTS/`
+  - [ ] `TTS/` (future milestone)
   - [ ] `API/`
 - [ ] `Models/`
 - [ ] `Storage/`
@@ -126,9 +126,9 @@ Create the following groups in Xcode:
 
 ### Build Verification
 
-- [ ] Project builds without errors: `xcodebuild build -scheme HeyLlama`
+- [ ] Project builds without errors in Xcode (`Cmd+B`)
 - [ ] Project builds without warnings (or only expected dependency warnings)
-- [ ] Test target builds: `xcodebuild build-for-testing -scheme HeyLlama`
+- [ ] Test target builds (run tests once) in Xcode (`Cmd+U`)
 
 ### Runtime Verification
 

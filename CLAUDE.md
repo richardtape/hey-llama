@@ -23,8 +23,8 @@ Read these documents for full context before implementing features.
 - **VAD**: FluidAudio (Silero VAD)
 - **STT**: WhisperKit
 - **Speaker ID**: FluidAudio embeddings
-- **LLM**: Anthropic Claude API
-- **TTS**: AVSpeechSynthesizer
+- **LLM**: Apple Intelligence (on-device) or local OpenAI API-compatible server (e.g. Ollama)
+- **TTS**: (future milestone) As yet undetermined Text to Speech method
 - **Networking**: Network.framework (HTTP/WebSocket), Bonjour/mDNS
 - **Requirements**: macOS 14+, Apple Silicon (M1+), Xcode 15+
 
@@ -49,11 +49,11 @@ Read these documents for full context before implementing features.
 
 ### Core Flow
 ```
-Microphone → AudioEngine → VAD → [speech end] → STT + Speaker ID (parallel) → Command Processor → LLM → TTS
+Microphone → AudioEngine → VAD → [speech end] → STT + Speaker ID (parallel) → Command Processor → LLM → Response (UI or Audio Chime)
 ```
 
 ### State Machine
-`idle` → `listening` → `capturing` (speech detected) → `processing` (STT/speaker ID) → `responding` (TTS) → `listening`
+`idle` → `listening` → `capturing` (speech detected) → `processing` (STT/speaker ID) → `responding` (LLM) → `listening`
 
 ### Key Components
 
@@ -70,6 +70,8 @@ Microphone → AudioEngine → VAD → [speech end] → STT + Speaker ID (parall
 **SpeakerService** (`Services/Speaker/SpeakerService.swift`): FluidAudio embeddings for speaker identification using cosine distance.
 
 **APIServer** (`Services/API/APIServer.swift`): HTTP REST (port 8765) and WebSocket (port 8766) server for external clients.
+
+**SkillsRegistry** (`Services/Skills/SkillsRegistry.swift`): Registered “skills” (commands/actions) exposed to the LLM with JSON schemas (e.g. Weather, Reminders).
 
 ### Design Patterns
 
@@ -89,8 +91,9 @@ HeyLlama/
 │   ├── Audio/              # AudioEngine, AudioBuffer, VADService
 │   ├── Speech/             # STTService
 │   ├── Speaker/            # SpeakerService, embeddings
-│   ├── LLM/                # Claude API client
+│   ├── LLM/                # LLM provider abstraction (Apple Intelligence / OpenAI-compatible)
 │   ├── TTS/                # Text-to-speech
+│   ├── Skills/             # Registered skills/actions (Weather, Reminders, etc.)
 │   └── API/                # HTTP/WebSocket server
 ├── Models/                 # Speaker, AudioChunk, Command
 └── Storage/                # JSON persistence to ~/Library/Application Support/HeyLlama/
@@ -116,17 +119,21 @@ HeyLlama/
 1. **Audio Foundation**: AudioEngine + VAD + menu bar state display
 2. **Speech-to-Text**: WhisperKit integration, wake word detection
 3. **Speaker Identification**: FluidAudio embeddings, enrollment UI
-4. **LLM Integration**: Claude API, TTS response
-5. **API Server**: HTTP/WebSocket for external clients
-6. **Settings & Polish**: Full settings UI, error handling, onboarding
+4. **LLM Integration**: Apple Intelligence / local OpenAI-compatible (text responses)
+5. **Tools/Skills Registry**: Registered skills/actions (Weather, Reminders) with structured JSON tool calling
+6. **API Server**: HTTP/WebSocket for external clients
+7. **Settings & Polish**: Full settings UI, error handling, onboarding
 
 ## Configuration
 
 Config stored at `~/Library/Application Support/HeyLlama/config.json`:
 - `wakePhrase`: default "hey llama"
 - `apiPort`: default 8765
-- `llm.apiKey`: Anthropic API key
-- `llm.model`: default "claude-sonnet-4-20250514"
+- `llm.provider`: `"appleIntelligence"` or `"openAICompatible"`
+- `llm.openAICompatible.baseURL`: e.g. `http://localhost:11434/v1`
+- `llm.openAICompatible.apiKey`: optional
+- `llm.openAICompatible.model`: user-selected model name
+- `skills.enabledSkillIDs`: list of enabled skills (e.g. `weather.forecast`, `reminders.add_item`)
 
 ## Key Implementation Notes
 

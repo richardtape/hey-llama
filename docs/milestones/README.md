@@ -17,9 +17,10 @@ Build these in sequence. Each milestone depends on the previous ones being compl
 | 1 | [Audio Foundation](./01-audio-foundation.md) | Audio capture, VAD | Shows "Capturing..." when speaking |
 | 2 | [Speech-to-Text](./02-speech-to-text.md) | WhisperKit, wake word | Transcribes and detects "Hey Llama" |
 | 3 | [Speaker Identification](./03-speaker-identification.md) | FluidAudio, enrollment | Identifies enrolled speakers |
-| 4 | [LLM Integration](./04-llm-integration.md) | Claude API, TTS | Full voice assistant loop |
-| 5 | [API Server](./05-api-server.md) | HTTP/WebSocket, Bonjour | External clients can connect |
-| 6 | [Settings & Polish](./06-settings-polish.md) | Error handling, onboarding | Production-ready v1.0 |
+| 4 | [LLM Integration](./04-llm-integration.md) | Apple Intelligence / local OpenAI-compatible LLM | Text responses from the LLM |
+| 5 | [Tools/Skills Registry](./05-tools-registry.md) | Skills registry + structured JSON tool calling | Weather + Reminders skills (text confirmations) |
+| 6 | [API Server](./06-api-server.md) | HTTP/WebSocket, Bonjour | External clients can connect |
+| 7 | [Settings & Polish](./07-settings-polish.md) | Error handling, onboarding, skills toggles | Production-ready v1.0 |
 
 ---
 
@@ -63,7 +64,8 @@ Commit your work with a descriptive message. Verify you're ready for the next mi
 Tasks marked with ⚡ can be developed in parallel. For example:
 - M1: AudioChunk ⚡ AudioSource (independent models)
 - M3: SpeakerEmbedding ⚡ Speaker (independent models)
-- M4: LLMService ⚡ TTSService (no dependencies)
+- M4: LLMService ⚡ Provider implementations (no dependencies)
+- M5: SkillsRegistry ⚡ individual skills (independent skills)
 - M5: HTTP Server ⚡ WebSocket Server (independent servers)
 
 ### Using Superpowers Skills
@@ -97,6 +99,7 @@ Each milestone provides usable functionality:
 - **After M1**: App responds to speech visually
 - **After M2**: App understands what you say
 - **After M3**: App knows who is speaking
-- **After M4**: App is a working voice assistant (local)
-- **After M5**: App accepts commands from other devices
-- **After M6**: App is ready for daily use
+- **After M4**: App can generate responses via LLM (text)
+- **After M5**: App can run registered skills (Weather, Reminders) via structured actions
+- **After M6**: App accepts commands from other devices
+- **After M7**: App is ready for daily use

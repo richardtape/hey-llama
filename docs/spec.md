@@ -128,9 +128,8 @@ HeyLlama/
 │   │   │   ├── LLMService.swift       # LLM API client
 │   │   │   ├── LLMServiceProtocol.swift
 │   │   │   └── LLMProviders/
-│   │   │       ├── AnthropicProvider.swift
-│   │   │       ├── OpenAIProvider.swift
-│   │   │       └── LocalProvider.swift  # Future: local LLM
+│   │   │       ├── AppleIntelligenceProvider.swift
+│   │   │       └── OpenAICompatibleProvider.swift
 │   │   │
 │   │   ├── TTS/
 │   │   │   ├── TTSService.swift       # Text-to-speech
@@ -1131,14 +1130,27 @@ struct AssistantConfig: Codable {
     var audio: AudioConfig
     
     struct LLMConfig: Codable {
-        var provider: LLMProvider = .anthropic
-        var apiKey: String = ""
-        var model: String = "claude-sonnet-4-20250514"
+        var provider: LLMProvider = .appleIntelligence
         var systemPrompt: String = """
             You are Llama, a helpful voice assistant. Keep responses concise 
             and conversational, suitable for spoken delivery. The current user 
             is {speaker_name}.
             """
+        
+        var appleIntelligence: AppleIntelligenceConfig = .init()
+        var openAICompatible: OpenAICompatibleConfig = .init()
+    }
+    
+    struct AppleIntelligenceConfig: Codable {
+        var enabled: Bool = true
+        var preferredModel: String? = nil
+    }
+    
+    struct OpenAICompatibleConfig: Codable {
+        var enabled: Bool = true
+        var baseURL: String = "http://localhost:11434/v1"
+        var apiKey: String? = nil
+        var model: String = "" // required
     }
     
     struct TTSConfig: Codable {
@@ -1154,9 +1166,8 @@ struct AssistantConfig: Codable {
     }
     
     enum LLMProvider: String, Codable, CaseIterable {
-        case anthropic
-        case openai
-        case local
+        case appleIntelligence
+        case openAICompatible
     }
     
     static var `default`: AssistantConfig {
@@ -1322,11 +1333,11 @@ dependencies: [
 **Goal:** Process commands and generate responses
 
 **Tasks:**
-1. Implement `LLMService` with Anthropic API client
-2. Create configuration UI for API key
+1. Implement `LLMService` with provider abstraction (Apple Intelligence + OpenAI-compatible local)
+2. Create configuration UI for provider selection + local server settings (URL, optional API key, model)
 3. Build prompt with speaker context
 4. Implement `TTSService` using system speech
-5. Connect full pipeline: wake word → LLM → TTS
+5. Connect full pipeline: wake word → LLM → response handling (UI)
 6. Add acknowledgment chime on wake word detection
 7. Test: "Hey Llama, what time is it?" → spoken response
 
@@ -1334,7 +1345,7 @@ dependencies: [
 
 ---
 
-### Milestone 5: API Server
+### Milestone 6: API Server
 
 **Goal:** Enable external clients (satellites, iOS)
 
@@ -1351,14 +1362,14 @@ dependencies: [
 
 ---
 
-### Milestone 6: Settings & Polish
+### Milestone 7: Settings & Polish
 
 **Goal:** Production-ready user experience
 
 **Tasks:**
 1. Create comprehensive Settings UI
 2. Add audio device selection
-3. Add LLM provider selection (Anthropic/OpenAI)
+3. Add LLM provider selection (Apple Intelligence / OpenAI-compatible local)
 4. Implement login item (launch at startup)
 5. Add error handling and user-facing error messages
 6. Add logging infrastructure
@@ -1438,7 +1449,7 @@ func testFullPipelineWithMocks() async {
 - [ ] Speaker identification correct for enrolled users
 - [ ] Unknown speaker classified as "Guest"
 - [ ] LLM responds appropriately
-- [ ] TTS speaks response clearly
+- [ ] (Future milestone) TTS speaks response clearly
 - [ ] API health endpoint responds
 - [ ] WebSocket audio streaming works
 - [ ] App survives sleep/wake cycle

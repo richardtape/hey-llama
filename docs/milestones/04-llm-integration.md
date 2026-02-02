@@ -8,7 +8,12 @@ For general project context, see:
 
 ## Goal
 
-Connect to the Anthropic Claude API to process commands and generate responses. Implement text-to-speech to speak responses aloud. This completes the core voice assistant loop.
+Integrate an LLM provider so the app can turn a wake-word command into a **text response**.
+
+This milestone is intentionally **LLM-only**:
+
+- **No spoken response / TTS yet** (that will be a future milestone)
+- **No tools/skills registry yet** (that will be Milestone 5)
 
 ## Prerequisites
 
@@ -20,11 +25,16 @@ Connect to the Anthropic Claude API to process commands and generate responses. 
 
 Key design decisions for this milestone:
 
-- [ ] Confirm default LLM: Anthropic Claude (claude-sonnet-4-20250514)
-- [ ] Confirm system prompt: concise, conversational responses for voice
-- [ ] Confirm TTS engine: AVSpeechSynthesizer (system)
-- [ ] Confirm chime behavior: short acknowledgment sound on wake word
-- [ ] Confirm error handling: speak user-friendly error messages
+- [ ] Confirm default LLM provider: Apple Intelligence (preferred) vs local OpenAI-compatible
+- [ ] Confirm Apple Intelligence availability strategy (version gating + graceful fallback)
+- [ ] Confirm local OpenAI-compatible server contract:
+  - [ ] Base URL (example: `http://localhost:11434/v1`)
+  - [ ] Optional API key
+  - [ ] Model selection (typed or discovered via `/v1/models`)
+- [ ] Confirm system prompt:
+  - [ ] concise, conversational responses suitable for UI display (not speech)
+  - [ ] includes speaker name substitution
+- [ ] Confirm error handling: show user-friendly errors in menu bar UI
 
 ---
 
@@ -34,14 +44,16 @@ Key design decisions for this milestone:
 
 - [ ] Create `LLMServiceTests.swift` in test target
 - [ ] Create `MockLLMService.swift` in `HeyLlamaTests/Mocks/`
-- [ ] Create `MockTTSService.swift` in `HeyLlamaTests/Mocks/`
 
 ### Write LLMService Tests (RED)
 
-- [ ] Test: `isConfigured` returns `false` when API key empty
-- [ ] Test: `isConfigured` returns `true` when API key present
+- [ ] Test: provider selection routes to correct underlying provider
+- [ ] Test: Apple Intelligence provider is treated as configured when supported
+- [ ] Test: OpenAI-compatible provider `isConfigured` returns false when base URL missing
+- [ ] Test: OpenAI-compatible provider `isConfigured` returns false when model missing
+- [ ] Test: OpenAI-compatible provider `isConfigured` returns true when base URL + model set (API key optional)
 - [ ] Test: System prompt includes speaker name substitution
-- [ ] Test: Request body format matches Anthropic API spec
+- [ ] Test: Request body format matches OpenAI-compatible `POST /v1/chat/completions`
 - [ ] Test: Response parsing extracts content correctly
 - [ ] Test: Network errors throw appropriate error type
 
@@ -50,7 +62,7 @@ Key design decisions for this milestone:
 - [ ] Test: Full pipeline with MockSTT, MockSpeaker, MockLLM
 - [ ] Test: Command flows from wake word to LLM call
 - [ ] Test: Speaker context included in LLM prompt
-- [ ] Test: Error in LLM triggers error speech
+- [ ] Test: Error in LLM shows user-friendly error state/message
 
 ### Create MockLLMService
 
@@ -58,13 +70,6 @@ Key design decisions for this milestone:
 - [ ] Allow setting `mockResponse: String`
 - [ ] Track `lastPrompt: String?` and `lastContext: CommandContext?`
 - [ ] Allow simulating errors with `shouldThrowError: Bool`
-
-### Create MockTTSService
-
-- [ ] Implement `TTSServiceProtocol`
-- [ ] Track `spokenTexts: [String]`
-- [ ] Track `playedChimes: [ChimeType]`
-- [ ] Implement `isSpeaking` as settable
 
 ---
 
@@ -80,33 +85,33 @@ Key design decisions for this milestone:
 - [ ] Define `apiPort: UInt16 = 8765`
 - [ ] Define `apiEnabled: Bool = true`
 - [ ] Define nested `llm: LLMConfig`
-- [ ] Define nested `tts: TTSConfig`
-- [ ] Define nested `audio: AudioConfig`
+- [ ] (Optional placeholder) Keep other config groups for future milestones, but do not implement them here
 - [ ] Conform to `Codable`
 - [ ] Implement `static var `default`: AssistantConfig`
 
 #### LLMConfig
 
-- [ ] Define `provider: LLMProvider = .anthropic`
-- [ ] Define `apiKey: String = ""`
-- [ ] Define `model: String = "claude-sonnet-4-20250514"`
-- [ ] Define `systemPrompt: String` with default voice assistant prompt
+- [ ] Define `provider: LLMProvider = .appleIntelligence`
+- [ ] Define `systemPrompt: String` with default “helpful assistant” prompt (no tool/skill calling yet)
+- [ ] Define `appleIntelligence: AppleIntelligenceConfig`
+- [ ] Define `openAICompatible: OpenAICompatibleConfig`
 
-#### TTSConfig
+#### AppleIntelligenceConfig
 
-- [ ] Define `voice: String` (system default)
-- [ ] Define `rate: Float = 0.5`
-- [ ] Define `volume: Float = 1.0`
+- [ ] Define `enabled: Bool = true`
+- [ ] Define `preferredModel: String?` (optional; depends on Apple API surface)
 
-#### AudioConfig
+#### OpenAICompatibleConfig
 
-- [ ] Define `inputDevice: String?`
-- [ ] Define `outputDevice: String?`
-- [ ] Define `silenceThresholdMs: Int = 300`
+- [ ] Define `enabled: Bool = true`
+- [ ] Define `baseURL: String = "http://localhost:11434/v1"`
+- [ ] Define `apiKey: String? = nil` (optional)
+- [ ] Define `model: String = ""` (required; user selects)
+- [ ] Define `timeoutSeconds: Int = 60`
 
 #### LLMProvider Enum
 
-- [ ] Define cases: `.anthropic`, `.openai`, `.local`
+- [ ] Define cases: `.appleIntelligence`, `.openAICompatible`
 - [ ] Conform to `String`, `Codable`, `CaseIterable`
 
 ### Implement ConfigStore
@@ -130,61 +135,32 @@ Key design decisions for this milestone:
 - [ ] Create `LLMService.swift` in `Services/LLM/`
 - [ ] Conform to `LLMServiceProtocol`
 - [ ] Accept `LLMConfig` in init
-- [ ] Store API key, model, system prompt
-- [ ] Implement `isConfigured` based on API key presence
+- [ ] Store provider selection + provider configs
+- [ ] Implement `isConfigured` based on selected provider requirements
 
-#### Implement AnthropicProvider ⚡
+#### Implement AppleIntelligenceProvider ⚡
 
-- [ ] Create `AnthropicProvider.swift` in `Services/LLM/LLMProviders/`
-- [ ] Build HTTP request to `https://api.anthropic.com/v1/messages`
-- [ ] Set headers: `x-api-key`, `anthropic-version`, `content-type`
-- [ ] Build request body with messages array
+- [ ] Create `AppleIntelligenceProvider.swift` in `Services/LLM/LLMProviders/`
+- [ ] Implement minimal `complete(...)` using Apple’s on-device model APIs when available
+- [ ] Return a clear error if unsupported on this macOS/device
+
+#### Implement OpenAICompatibleProvider ⚡
+
+- [ ] Create `OpenAICompatibleProvider.swift` in `Services/LLM/LLMProviders/`
+- [ ] Build HTTP request to `{baseURL}/chat/completions`
+- [ ] Set headers:
+  - [ ] `Authorization: Bearer <apiKey>` (only if apiKey provided)
+  - [ ] `Content-Type: application/json`
+- [ ] Build request body with `model`, `messages`
+- [ ] Prefer structured output controls where supported (JSON mode / schema), otherwise enforce JSON via prompt
 - [ ] Parse response to extract assistant content
-- [ ] Handle rate limiting (429) with retry
-- [ ] Handle authentication errors (401)
-- [ ] Handle other API errors
+- [ ] Handle common API errors (401/403/404/429/5xx) with friendly messaging
 
 #### Build Prompt with Context
 
 - [ ] Replace `{speaker_name}` in system prompt with actual name
 - [ ] Use "Guest" if speaker is `nil`
-- [ ] Include instruction for concise, conversational responses
-
-#### Define TTSServiceProtocol ⚡
-
-- [ ] Create `TTSServiceProtocol.swift` in `Services/TTS/`
-- [ ] Define `func speak(_ text: String) async`
-- [ ] Define `func playChime(_ chime: ChimeType) async`
-- [ ] Define `func stop()`
-- [ ] Define `var isSpeaking: Bool { get }`
-
-#### Define ChimeType Enum ⚡
-
-- [ ] Create `ChimeType` enum
-- [ ] Define `.acknowledged` (wake word detected)
-- [ ] Define `.error` (something went wrong)
-- [ ] Define `.ready` (optional, model loaded)
-
-#### Implement TTSService ⚡
-
-- [ ] Create `TTSService.swift` in `Services/TTS/`
-- [ ] Conform to `TTSServiceProtocol`
-- [ ] Use `AVSpeechSynthesizer`
-- [ ] Accept `TTSConfig` in init
-- [ ] Implement `AVSpeechSynthesizerDelegate` for state tracking
-
-#### TTSService Methods ⚡
-
-- [ ] Implement `speak(_ text: String) async`
-  - Create `AVSpeechUtterance`
-  - Configure voice, rate, volume
-  - Speak and wait for completion
-
-- [ ] Implement `playChime(_ chime: ChimeType) async`
-  - Use `NSSound` or bundled audio
-  - Keep short and unobtrusive
-
-- [ ] Implement `stop()` - stop immediately
+- [ ] Keep responses concise and suitable for on-screen display
 
 ---
 
@@ -193,19 +169,17 @@ Key design decisions for this milestone:
 ### Add to Coordinator
 
 - [ ] Add `llmService: LLMServiceProtocol` to coordinator
-- [ ] Add `ttsService: TTSServiceProtocol` to coordinator
 - [ ] Accept optional protocols in init (for testing)
 - [ ] Load config from ConfigStore
 
 ### Implement Command Processing
 
 - [ ] Create `processCommand(_ command: String, speaker: Speaker?, source: AudioSource) async`
-- [ ] Play acknowledgment chime immediately
 - [ ] Build `CommandContext`
 - [ ] Set state to `.responding`
-- [ ] Call `llmService.complete()`
-- [ ] On success: call `ttsService.speak()` with response
-- [ ] On error: speak user-friendly error message
+- [ ] Call `llmService.complete()` to produce a text response
+- [ ] On success: store the response for UI display (e.g. `lastResponse`)
+- [ ] On error: show user-friendly error message/state
 - [ ] Return to `.listening` state
 
 ### Update Utterance Processing
@@ -214,11 +188,10 @@ Key design decisions for this milestone:
 - [ ] Call `processCommand()` instead of logging
 - [ ] Ensure proper state transitions
 
-### Handle Missing API Key
+### Handle Missing Provider Configuration
 
-- [ ] Check if API key configured on startup
-- [ ] If not: show prompt to open settings
-- [ ] Disable voice commands until configured
+- [ ] If OpenAI-compatible selected and base URL/model not set: show prompt to open settings
+- [ ] If Apple Intelligence selected but unavailable: show prompt to select fallback provider
 - [ ] Show status in menu bar dropdown
 
 ### Create Settings UI
@@ -232,25 +205,21 @@ Key design decisions for this milestone:
 #### LLM Settings Section
 
 - [ ] Add to SettingsView or create separate tab
-- [ ] Secure text field for API key
-- [ ] Provider picker (Anthropic/OpenAI)
-- [ ] Model name text field
+- [ ] Provider picker (Apple Intelligence / Local OpenAI-compatible)
+- [ ] Apple Intelligence: availability status + enable toggle
+- [ ] Local OpenAI-compatible:
+  - [ ] Base URL field
+  - [ ] Optional API key field
+  - [ ] Model picker / text field
+  - [ ] “Refresh models” button (optional: fetch `/v1/models`)
 - [ ] System prompt text editor
 - [ ] Test connection button
-
-#### TTS Settings Section
-
-- [ ] Voice picker (list system voices)
-- [ ] Rate slider (0.0 - 1.0)
-- [ ] Volume slider (0.0 - 1.0)
-- [ ] Preview button
 
 ### Update Menu Bar UI
 
 - [ ] Show "Responding..." during LLM call
-- [ ] Show "Speaking..." during TTS
 - [ ] Display last response (truncated)
-- [ ] Show warning if API key not configured
+- [ ] Show warning if AI provider is not configured / unavailable
 
 ---
 
@@ -258,29 +227,21 @@ Key design decisions for this milestone:
 
 ### Test Suite
 
-- [ ] Run all unit tests: `xcodebuild test -scheme HeyLlama`
+- [ ] Run all unit tests in Xcode (`Cmd+U`)
 - [ ] All LLMService tests pass (GREEN)
 - [ ] Integration tests with mocks pass
 - [ ] Previous milestone tests still pass
 
 ### Manual Testing
 
-- [ ] Configure API key in settings
+- [ ] Configure provider in settings (Apple Intelligence or local OpenAI-compatible)
 - [ ] Say "Hey Llama, what time is it?"
-- [ ] Verify acknowledgment chime plays
-- [ ] Verify spoken response
+- [ ] Verify response text appears in the menu bar UI
 - [ ] Test various commands
 - [ ] Verify speaker context in responses (if personalized)
-- [ ] Test error handling: disconnect network
-- [ ] Test with invalid API key
+- [ ] Test error handling (OpenAI-compatible): stop local server or break URL
+- [ ] Test with invalid API key (if provided)
 - [ ] Verify settings persist across restart
-
-### TTS Testing
-
-- [ ] Test different voice settings
-- [ ] Test rate adjustment
-- [ ] Test volume adjustment
-- [ ] Verify preview button works
 
 ### Regression Check
 
@@ -296,25 +257,23 @@ Key design decisions for this milestone:
 
 ```bash
 git add .
-git commit -m "Milestone 4: LLM integration with TTS
+git commit -m "Milestone 4: LLM integration (text responses)
 
-- Implement LLMService with Anthropic Claude API
-- Implement TTSService with AVSpeechSynthesizer
-- Add acknowledgment chime on wake word detection
+- Add LLM provider abstraction (Apple Intelligence + OpenAI-compatible local)
 - Create AssistantConfig and ConfigStore
-- Add LLM and TTS settings UI
-- Handle API errors with spoken messages
-- Complete core voice assistant loop"
+- Add LLM settings UI (provider selection, local server config)
+- Handle provider/network errors with user-friendly messages
+- Produce and display text responses from the LLM"
 ```
 
 ### Ready for Next Milestone
 
 - [ ] All Phase 5 verification items pass
 - [ ] Code committed to version control
-- [ ] Ready to proceed to [Milestone 5: API Server](./05-api-server.md)
+- [ ] Ready to proceed to [Milestone 5: Tools/Skills Registry](./05-tools-registry.md)
 
 ---
 
 ## Deliverable
 
-Fully functional voice assistant for local microphone. User says "Hey Llama, [command]", hears acknowledgment chime, and receives spoken response from Claude. Settings allow API key configuration and TTS customization.
+LLM-backed assistant for local microphone that produces **text responses**. User says "Hey Llama, [command]" and the app shows the LLM response in the menu bar UI. Supports Apple Intelligence or a local OpenAI-compatible server via settings.
