@@ -192,6 +192,7 @@ final class AssistantCoordinator: ObservableObject {
             currentSpeaker = speaker
 
             let speakerName = speaker?.name ?? "Guest"
+            print("[Coordinator] Setting currentSpeaker to: \(speaker?.name ?? "nil") (ID: \(speaker?.id.uuidString ?? "nil"))")
             print("[\(speakerName)] Transcription: \"\(result.text)\" (confidence: \(String(format: "%.2f", result.confidence)), \(result.processingTimeMs)ms)")
 
             // Check for wake word and extract command
