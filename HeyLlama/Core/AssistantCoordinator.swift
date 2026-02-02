@@ -121,6 +121,11 @@ final class AssistantCoordinator: ObservableObject {
     // MARK: - Speaker Management
 
     func enrollSpeaker(name: String, samples: [AudioChunk]) async throws -> Speaker {
+        // Ensure speaker model is loaded (needed for onboarding before start() is called)
+        if await !speakerService.isModelLoaded {
+            try await speakerService.loadModel()
+        }
+        
         let speaker = try await speakerService.enroll(name: name, samples: samples)
         requiresOnboarding = false
         return speaker
