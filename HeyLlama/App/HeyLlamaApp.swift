@@ -21,9 +21,26 @@ struct HeyLlamaApp: App {
                 .environmentObject(appState)
         }
 
-        Window("Speaker Enrollment", id: "enrollment") {
+        // Onboarding window (opens automatically if no speakers enrolled)
+        Window("Welcome to Hey Llama", id: "onboarding") {
+            OnboardingView()
+                .environmentObject(appState)
+                .onDisappear {
+                    appState.completeOnboarding()
+                    Task {
+                        await appState.start()
+                    }
+                }
+        }
+        .windowStyle(.hiddenTitleBar)
+        .windowResizability(.contentSize)
+
+        // Enrollment window for adding speakers later
+        Window("Add Speaker", id: "enrollment") {
             EnrollmentView()
                 .environmentObject(appState)
         }
+        .windowStyle(.hiddenTitleBar)
+        .windowResizability(.contentSize)
     }
 }
