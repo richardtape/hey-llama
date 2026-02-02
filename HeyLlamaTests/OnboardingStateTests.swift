@@ -4,12 +4,12 @@ import XCTest
 @MainActor
 final class OnboardingStateTests: XCTestCase {
 
-    func testInitialStepIsWelcome() {
+    func testInitialStepIsWelcome() async {
         let state = OnboardingState()
         XCTAssertEqual(state.currentStep, .welcome)
     }
 
-    func testProgressToNextStep() {
+    func testProgressToNextStep() async {
         let state = OnboardingState()
 
         state.nextStep()
@@ -19,7 +19,7 @@ final class OnboardingStateTests: XCTestCase {
         XCTAssertEqual(state.currentStep, .recording)
     }
 
-    func testCannotProgressBeyondComplete() {
+    func testCannotProgressBeyondComplete() async {
         let state = OnboardingState()
 
         // Progress to complete
@@ -29,7 +29,7 @@ final class OnboardingStateTests: XCTestCase {
         XCTAssertEqual(state.currentStep, .complete)
     }
 
-    func testPreviousStep() {
+    func testPreviousStep() async {
         let state = OnboardingState()
         state.currentStep = .recording
 
@@ -40,14 +40,14 @@ final class OnboardingStateTests: XCTestCase {
         XCTAssertEqual(state.currentStep, .welcome)
     }
 
-    func testCannotGoPreviousFromWelcome() {
+    func testCannotGoPreviousFromWelcome() async {
         let state = OnboardingState()
 
         state.previousStep()
         XCTAssertEqual(state.currentStep, .welcome)
     }
 
-    func testStartRecordingForSpeaker() {
+    func testStartRecordingForSpeaker() async {
         let state = OnboardingState()
         state.speakerName = "Alice"
 
@@ -57,7 +57,7 @@ final class OnboardingStateTests: XCTestCase {
         XCTAssertEqual(state.currentPhraseIndex, 0)
     }
 
-    func testAdvanceToNextPhrase() {
+    func testAdvanceToNextPhrase() async {
         let state = OnboardingState()
         state.speakerName = "Alice"
         state.startRecording()
@@ -68,20 +68,21 @@ final class OnboardingStateTests: XCTestCase {
         XCTAssertEqual(state.currentPhraseIndex, 2)
     }
 
-    func testRecordingCompletesWhenAllPhrasesRecorded() {
+    func testRecordingCompletesWhenAllPhrasesRecorded() async {
         let state = OnboardingState()
         state.speakerName = "Alice"
         state.startRecording()
 
         for _ in 0..<EnrollmentPrompts.count {
-            state.recordedPhrase()
+            let chunk = AudioChunk(samples: [Float](repeating: 0.1, count: 480))
+            state.addRecordedSample(chunk)
         }
 
         XCTAssertFalse(state.isRecording)
         XCTAssertTrue(state.allPhrasesRecorded)
     }
 
-    func testAddEnrolledSpeaker() {
+    func testAddEnrolledSpeaker() async {
         let state = OnboardingState()
         let embedding = SpeakerEmbedding(vector: [1], modelVersion: "1.0")
         let speaker = Speaker(name: "Alice", embedding: embedding)
@@ -92,7 +93,7 @@ final class OnboardingStateTests: XCTestCase {
         XCTAssertEqual(state.enrolledSpeakers.first?.name, "Alice")
     }
 
-    func testResetForAnotherSpeaker() {
+    func testResetForAnotherSpeaker() async {
         let state = OnboardingState()
         state.speakerName = "Alice"
         state.currentPhraseIndex = 3
@@ -104,7 +105,7 @@ final class OnboardingStateTests: XCTestCase {
         XCTAssertEqual(state.currentStep, .enterName)
     }
 
-    func testCanCompleteWithAtLeastOneSpeaker() {
+    func testCanCompleteWithAtLeastOneSpeaker() async {
         let state = OnboardingState()
         XCTAssertFalse(state.canComplete)
 

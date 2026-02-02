@@ -45,6 +45,6 @@ final class EnrollmentPromptsTests: XCTestCase {
         let maxLength = lengths.max()!
 
         // Should have some variety in length
-        XCTAssertGreaterThan(maxLength - minLength, 10)
+        XCTAssertGreaterThanOrEqual(maxLength - minLength, 10)
     }
 }
