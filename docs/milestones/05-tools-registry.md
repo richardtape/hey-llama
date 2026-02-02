@@ -37,12 +37,9 @@ Key design decisions for this milestone:
 - [ ] Confirm permission model:
   - [ ] Each skill declares required permissions
   - [ ] App requests permission on first use (and/or via Settings)
-- [ ] Confirm safety model:
-  - [ ] Allow running skills without confirmation by default, or require confirmation for “write” actions (e.g. Reminders)
-- [ ] Confirm weather data source approach for v1:
-  - [ ] Prefer WeatherKit (requires location permission + entitlement considerations), OR
-  - [ ] Use a simple no-key HTTP forecast source (if acceptable), OR
-  - [ ] “Stub” weather skill initially with clear TODOs (not ideal, but acceptable for scaffolding)
+- [ ] Use WeatherKit (requires location permission + entitlement considerations) for Weather.
+- [ ] For Apple Foundation models see https://developer.apple.com/documentation/foundationmodels/expanding-generation-with-tool-calling to help with integrating with tool calling.
+- [ ] Additionally https://developer.apple.com/documentation/eventkit/creating-events-and-reminders may be useful for adding an item to a list in reminders.
 
 ---
 
