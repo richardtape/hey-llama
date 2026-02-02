@@ -39,6 +39,14 @@ struct HeyLlamaApp: App {
         Window("Add Speaker", id: "enrollment") {
             EnrollmentView()
                 .environmentObject(appState)
+                .onDisappear {
+                    // Start the app if it's not already running
+                    Task {
+                        if !appState.coordinator.isListening {
+                            await appState.start()
+                        }
+                    }
+                }
         }
         .windowStyle(.hiddenTitleBar)
         .windowResizability(.contentSize)
