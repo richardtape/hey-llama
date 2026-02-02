@@ -132,7 +132,7 @@ final class EnrollmentRecorder: ObservableObject {
                 isSpeechActive = false
             }
             
-        case .noSpeech:
+        case .silence:
             break
         }
     }
