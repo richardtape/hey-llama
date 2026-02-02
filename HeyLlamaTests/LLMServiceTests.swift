@@ -24,14 +24,29 @@ final class LLMServiceTests: XCTestCase {
         XCTAssertFalse(configured)
     }
 
-    func testIsNotConfiguredWithAppleIntelligence() async {
-        // Apple Intelligence is currently unavailable
+    func testAppleIntelligenceConfiguredMatchesAvailability() async {
+        // Apple Intelligence isConfigured should match system availability
         var config = LLMConfig.default
         config.provider = .appleIntelligence
 
         let service = LLMService(config: config)
         let configured = await service.isConfigured
-        XCTAssertFalse(configured)
+
+        // Check actual provider availability
+        let provider = AppleIntelligenceProvider(config: config.appleIntelligence)
+        XCTAssertEqual(configured, provider.isAvailable,
+                       "LLMService.isConfigured should match AppleIntelligenceProvider.isAvailable")
+    }
+
+    func testAppleIntelligenceNotConfiguredWhenDisabled() async {
+        // Even if Apple Intelligence is available, it should not be configured when disabled
+        var config = LLMConfig.default
+        config.provider = .appleIntelligence
+        config.appleIntelligence.enabled = false
+
+        let service = LLMService(config: config)
+        let configured = await service.isConfigured
+        XCTAssertFalse(configured, "Should not be configured when disabled")
     }
 
     func testSelectedProviderReturnsCorrectType() {
@@ -42,14 +57,25 @@ final class LLMServiceTests: XCTestCase {
         XCTAssertEqual(service.selectedProvider, .openAICompatible)
     }
 
+    func testSelectedProviderForAppleIntelligence() {
+        var config = LLMConfig.default
+        config.provider = .appleIntelligence
+
+        let service = LLMService(config: config)
+        XCTAssertEqual(service.selectedProvider, .appleIntelligence)
+    }
+
     func testConfigProviderSwitching() async {
         var config = LLMConfig.default
 
-        // Start with Apple Intelligence (not configured)
+        // Start with Apple Intelligence
         config.provider = .appleIntelligence
         let service1 = LLMService(config: config)
         let configured1 = await service1.isConfigured
-        XCTAssertFalse(configured1)
+
+        // Check it matches availability
+        let aiProvider = AppleIntelligenceProvider(config: config.appleIntelligence)
+        XCTAssertEqual(configured1, aiProvider.isAvailable)
 
         // Switch to OpenAI-compatible (configured)
         config.provider = .openAICompatible

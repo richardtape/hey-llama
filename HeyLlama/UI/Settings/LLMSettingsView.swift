@@ -154,6 +154,24 @@ struct LLMSettingsView: View {
                 .font(.callout)
                 .foregroundColor(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
+
+            // Show availability status
+            let provider = AppleIntelligenceProvider(config: config.llm.appleIntelligence)
+            HStack(spacing: 6) {
+                if provider.isAvailable {
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundColor(.green)
+                    Text("Available")
+                        .foregroundColor(.green)
+                } else {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .foregroundColor(.orange)
+                    Text(provider.availabilityReason)
+                        .foregroundColor(.orange)
+                }
+            }
+            .font(.caption)
+            .padding(.top, 4)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.top, 4)
@@ -200,7 +218,8 @@ struct LLMSettingsView: View {
     private var isCurrentProviderConfigured: Bool {
         switch config.llm.provider {
         case .appleIntelligence:
-            return true // Will check actual availability when implemented
+            let provider = AppleIntelligenceProvider(config: config.llm.appleIntelligence)
+            return provider.isAvailable
         case .openAICompatible:
             return config.llm.openAICompatible.isConfigured
         }
@@ -232,27 +251,34 @@ struct LLMSettingsView: View {
 
         Task {
             do {
+                let response: String
+
                 if config.llm.provider == .appleIntelligence {
-                    await MainActor.run {
-                        testResult = "Apple Intelligence: not yet implemented"
-                        isTesting = false
-                    }
-                    return
+                    let provider = AppleIntelligenceProvider(
+                        config: config.llm.appleIntelligence,
+                        systemPromptTemplate: config.llm.systemPrompt
+                    )
+
+                    response = try await provider.complete(
+                        prompt: "Respond with exactly: OK",
+                        context: nil,
+                        conversationHistory: []
+                    )
+                } else {
+                    let provider = OpenAICompatibleProvider(
+                        config: config.llm.openAICompatible,
+                        systemPromptTemplate: config.llm.systemPrompt
+                    )
+
+                    response = try await provider.complete(
+                        prompt: "Respond with: OK",
+                        context: nil,
+                        conversationHistory: []
+                    )
                 }
 
-                let provider = OpenAICompatibleProvider(
-                    config: config.llm.openAICompatible,
-                    systemPromptTemplate: config.llm.systemPrompt
-                )
-
-                _ = try await provider.complete(
-                    prompt: "Respond with: OK",
-                    context: nil,
-                    conversationHistory: []
-                )
-
                 await MainActor.run {
-                    testResult = "Success"
+                    testResult = "Success: \(response.prefix(50))"
                     isTesting = false
                 }
             } catch {
