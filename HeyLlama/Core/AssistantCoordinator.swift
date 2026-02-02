@@ -8,31 +8,57 @@ final class AssistantCoordinator: ObservableObject {
     @Published private(set) var audioLevel: Float = 0
     @Published private(set) var lastTranscription: String?
     @Published private(set) var lastCommand: String?
+    @Published private(set) var lastResponse: String?
     @Published private(set) var isModelLoading: Bool = false
     @Published private(set) var currentSpeaker: Speaker?
     @Published private(set) var requiresOnboarding: Bool = true
     @Published private(set) var enrolledSpeakers: [Speaker] = []
+    @Published private(set) var llmConfigured: Bool = false
 
     private let audioEngine: AudioEngine
     private let vadService: VADService
     private let audioBuffer: AudioBuffer
     private let sttService: any STTServiceProtocol
     private let speakerService: any SpeakerServiceProtocol
+    private var llmService: any LLMServiceProtocol
     private let commandProcessor: CommandProcessor
     private let speakerStore: SpeakerStore
+    private let configStore: ConfigStore
+    private var conversationManager: ConversationManager
     private var cancellables = Set<AnyCancellable>()
+    private var useInjectedLLMService: Bool = false
+
+    private var config: AssistantConfig
 
     init(
         sttService: (any STTServiceProtocol)? = nil,
-        speakerService: (any SpeakerServiceProtocol)? = nil
+        speakerService: (any SpeakerServiceProtocol)? = nil,
+        llmService: (any LLMServiceProtocol)? = nil
     ) {
+        self.configStore = ConfigStore()
+        self.config = configStore.loadConfig()
+
         self.audioEngine = AudioEngine()
         self.vadService = VADService()
         self.audioBuffer = AudioBuffer(maxSeconds: 15)
         self.sttService = sttService ?? STTService()
         self.speakerService = speakerService ?? SpeakerService()
-        self.commandProcessor = CommandProcessor()
+
+        // Track if LLM service was injected (for testing)
+        if let injectedLLM = llmService {
+            self.llmService = injectedLLM
+            self.useInjectedLLMService = true
+        } else {
+            self.llmService = LLMService(config: config.llm)
+            self.useInjectedLLMService = false
+        }
+
+        self.commandProcessor = CommandProcessor(wakePhrase: config.wakePhrase)
         self.speakerStore = SpeakerStore()
+        self.conversationManager = ConversationManager(
+            timeoutMinutes: config.llm.conversationTimeoutMinutes,
+            maxTurns: config.llm.maxConversationTurns
+        )
 
         // Check if onboarding is required
         self.requiresOnboarding = !speakerStore.hasSpeakers()
@@ -101,6 +127,12 @@ final class AssistantCoordinator: ObservableObject {
             return
         }
 
+        // Check LLM configuration
+        llmConfigured = await llmService.isConfigured
+        if !llmConfigured {
+            print("Warning: LLM is not configured. Commands will not receive AI responses.")
+        }
+
         isModelLoading = false
 
         audioEngine.start()
@@ -116,7 +148,35 @@ final class AssistantCoordinator: ObservableObject {
         audioBuffer.clear()
         lastTranscription = nil
         lastCommand = nil
+        lastResponse = nil
         currentSpeaker = nil
+    }
+
+    // MARK: - Configuration
+
+    /// Reload configuration from disk and recreate LLM service
+    func reloadConfig() async {
+        config = configStore.loadConfig()
+
+        // Recreate LLM service with new config (unless using injected mock)
+        if !useInjectedLLMService {
+            llmService = LLMService(config: config.llm)
+        }
+
+        // Update conversation manager settings
+        conversationManager = ConversationManager(
+            timeoutMinutes: config.llm.conversationTimeoutMinutes,
+            maxTurns: config.llm.maxConversationTurns
+        )
+
+        // Update LLM configured status
+        llmConfigured = await llmService.isConfigured
+        print("Config reloaded. LLM configured: \(llmConfigured)")
+    }
+
+    /// Clear conversation history (e.g., for "new conversation" command)
+    func clearConversation() {
+        conversationManager.clearHistory()
     }
 
     // MARK: - Speaker Management
@@ -200,27 +260,63 @@ final class AssistantCoordinator: ObservableObject {
                 lastCommand = commandText
                 print("Wake word detected! Command: \"\(commandText)\"")
 
-                // Create command object for future LLM integration (Milestone 4)
-                let command = Command(
-                    rawText: result.text,
-                    commandText: commandText,
-                    speaker: speaker,
-                    source: source,
-                    confidence: result.confidence
-                )
-
-                // TODO: In Milestone 4, send command to LLM
-                _ = command
+                // Process command with LLM
+                await processCommand(commandText, speaker: speaker, source: source)
             } else {
                 print("No wake word detected in: \"\(result.text)\"")
+                // Return to listening state
+                state = .listening
             }
 
         } catch {
             print("Processing error: \(error)")
             lastTranscription = "[Processing failed]"
+            state = .listening
+        }
+    }
+
+    private func processCommand(_ commandText: String, speaker: Speaker?, source: AudioSource) async {
+        // Set state to responding
+        state = .responding
+
+        // Build command context
+        let context = CommandContext(
+            command: commandText,
+            speaker: speaker,
+            source: source,
+            conversationHistory: conversationManager.getRecentHistory()
+        )
+
+        // Get conversation history for context
+        let history = conversationManager.getRecentHistory()
+
+        do {
+            // Call LLM
+            let response = try await llmService.complete(
+                prompt: commandText,
+                context: context,
+                conversationHistory: history
+            )
+
+            // Update conversation history
+            conversationManager.addTurn(role: .user, content: commandText)
+            conversationManager.addTurn(role: .assistant, content: response)
+
+            // Update UI with response
+            lastResponse = response
+            print("LLM Response: \(response)")
+
+            // TODO: Milestone 5/6 - TTS/Audio response
+
+        } catch let error as LLMError {
+            print("LLM Error: \(error.localizedDescription)")
+            lastResponse = "[Error: \(error.localizedDescription)]"
+        } catch {
+            print("Unexpected error: \(error)")
+            lastResponse = "[Error processing command]"
         }
 
-        // Return to listening
+        // Return to listening state
         state = .listening
     }
 }

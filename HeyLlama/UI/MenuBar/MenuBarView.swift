@@ -27,6 +27,17 @@ struct MenuBarView: View {
             }
             .foregroundColor(statusColor)
 
+            // LLM configuration warning
+            if !appState.requiresOnboarding && !appState.llmConfigured {
+                HStack(spacing: 4) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .foregroundColor(.orange)
+                    Text("AI not configured")
+                        .font(.caption)
+                        .foregroundColor(.orange)
+                }
+            }
+
             if !appState.requiresOnboarding {
                 AudioLevelIndicator(level: appState.audioLevel)
                     .frame(height: 4)
@@ -69,6 +80,19 @@ struct MenuBarView: View {
                 }
             }
 
+            // Response section
+            if let response = appState.lastResponse, !response.isEmpty {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Response:")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    Text(response)
+                        .font(.caption)
+                        .foregroundColor(responseColor)
+                        .lineLimit(4)
+                }
+            }
+
             Divider()
 
             // Actions
@@ -96,7 +120,7 @@ struct MenuBarView: View {
             .keyboardShortcut("q", modifiers: .command)
         }
         .padding(8)
-        .frame(width: 240)
+        .frame(width: 260)
     }
 
     private var statusColor: Color {
@@ -112,11 +136,20 @@ struct MenuBarView: View {
             return .green
         case "Processing...":
             return .orange
+        case "Speaking...":
+            return .blue
         case _ where appState.statusText.hasPrefix("Error"):
             return .red
         default:
             return .secondary
         }
+    }
+
+    private var responseColor: Color {
+        if let response = appState.lastResponse, response.hasPrefix("[Error") {
+            return .red
+        }
+        return .primary
     }
 }
 

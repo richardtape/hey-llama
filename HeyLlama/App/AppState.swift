@@ -10,9 +10,11 @@ final class AppState: ObservableObject {
     @Published private(set) var audioLevel: Float = 0
     @Published private(set) var lastTranscription: String?
     @Published private(set) var lastCommand: String?
+    @Published private(set) var lastResponse: String?
     @Published private(set) var isModelLoading: Bool = false
     @Published private(set) var currentSpeaker: Speaker?
     @Published private(set) var enrolledSpeakers: [Speaker] = []
+    @Published private(set) var llmConfigured: Bool = false
     @Published var requiresOnboarding: Bool = true
     @Published var showOnboarding: Bool = false
 
@@ -45,6 +47,10 @@ final class AppState: ObservableObject {
             .receive(on: DispatchQueue.main)
             .assign(to: &$lastCommand)
 
+        coordinator.$lastResponse
+            .receive(on: DispatchQueue.main)
+            .assign(to: &$lastResponse)
+
         coordinator.$isModelLoading
             .receive(on: DispatchQueue.main)
             .assign(to: &$isModelLoading)
@@ -60,6 +66,10 @@ final class AppState: ObservableObject {
         coordinator.$requiresOnboarding
             .receive(on: DispatchQueue.main)
             .assign(to: &$requiresOnboarding)
+
+        coordinator.$llmConfigured
+            .receive(on: DispatchQueue.main)
+            .assign(to: &$llmConfigured)
     }
 
     func checkAndShowOnboarding() {
@@ -84,5 +94,10 @@ final class AppState: ObservableObject {
 
     func shutdown() {
         coordinator.shutdown()
+    }
+
+    /// Reload configuration after settings change
+    func reloadConfig() async {
+        await coordinator.reloadConfig()
     }
 }

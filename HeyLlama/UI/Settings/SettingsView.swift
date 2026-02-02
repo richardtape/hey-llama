@@ -8,6 +8,11 @@ struct SettingsView: View {
                     Label("General", systemImage: "gear")
                 }
 
+            LLMSettingsView()
+                .tabItem {
+                    Label("AI", systemImage: "brain")
+                }
+
             AudioSettingsPlaceholder()
                 .tabItem {
                     Label("Audio", systemImage: "waveform")
@@ -18,36 +23,51 @@ struct SettingsView: View {
                     Label("Speakers", systemImage: "person.2")
                 }
 
-            Text("API settings coming in Milestone 5")
+            APISettingsPlaceholder()
                 .tabItem {
                     Label("API", systemImage: "network")
                 }
         }
-        .frame(width: 500, height: 350)
+        .frame(width: 480, height: 520)
     }
 }
 
 struct GeneralSettingsView: View {
     var body: some View {
-        Form {
-            Section {
-                Text("Wake phrase, launch at login, and other general settings will be added in Milestone 6.")
-                    .foregroundColor(.secondary)
-            }
+        VStack {
+            Spacer()
+            Text("Wake phrase, launch at login, and other general settings will be added in Milestone 7.")
+                .foregroundColor(.secondary)
+                .multilineTextAlignment(.center)
+                .padding()
+            Spacer()
         }
-        .padding()
     }
 }
 
 struct AudioSettingsPlaceholder: View {
     var body: some View {
-        Form {
-            Section {
-                Text("Audio device selection, silence threshold, and microphone testing will be added in Milestone 6.")
-                    .foregroundColor(.secondary)
-            }
+        VStack {
+            Spacer()
+            Text("Audio device selection, silence threshold, and microphone testing will be added in Milestone 7.")
+                .foregroundColor(.secondary)
+                .multilineTextAlignment(.center)
+                .padding()
+            Spacer()
         }
-        .padding()
+    }
+}
+
+struct APISettingsPlaceholder: View {
+    var body: some View {
+        VStack {
+            Spacer()
+            Text("HTTP and WebSocket API settings for satellite devices will be added in Milestone 6.")
+                .foregroundColor(.secondary)
+                .multilineTextAlignment(.center)
+                .padding()
+            Spacer()
+        }
     }
 }
 
