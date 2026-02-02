@@ -146,8 +146,9 @@ struct EnterNameStepView: View {
 struct RecordingStepView: View {
     @ObservedObject var onboardingState: OnboardingState
     @ObservedObject var appState: AppState
-    @State private var isCurrentlyRecording = false
-    @State private var recordingTimer: Timer?
+    @StateObject private var recorder = EnrollmentRecorder()
+    @State private var isPreparing = false
+    @State private var permissionError: String?
 
     var body: some View {
         VStack(spacing: 20) {
@@ -184,35 +185,46 @@ struct RecordingStepView: View {
             }
 
             // Recording indicator
-            if isCurrentlyRecording {
+            if recorder.isRecording {
                 HStack(spacing: 8) {
                     Circle()
                         .fill(Color.red)
                         .frame(width: 12, height: 12)
-                    Text("Recording...")
+                    Text("Recording... speak now, pause when done")
                         .foregroundColor(.red)
                 }
                 .padding()
             }
 
+            // Permission error
+            if let error = permissionError {
+                Text(error)
+                    .foregroundColor(.red)
+                    .font(.caption)
+                    .multilineTextAlignment(.center)
+            }
+
             // Audio level indicator
-            AudioLevelBar(level: appState.audioLevel)
+            AudioLevelBar(level: recorder.isRecording ? recorder.audioLevel : 0)
                 .frame(height: 8)
                 .padding(.horizontal)
 
             Spacer()
 
             // Record button
-            Button(action: toggleRecording) {
-                HStack {
-                    Image(systemName: isCurrentlyRecording ? "stop.fill" : "mic.fill")
-                    Text(isCurrentlyRecording ? "Stop Recording" : "Start Recording")
+            if isPreparing {
+                ProgressView("Requesting microphone access...")
+            } else if !onboardingState.allPhrasesRecorded {
+                Button(action: toggleRecording) {
+                    HStack {
+                        Image(systemName: recorder.isRecording ? "stop.fill" : "mic.fill")
+                        Text(recorder.isRecording ? "Stop Recording" : "Start Recording")
+                    }
                 }
+                .buttonStyle(.borderedProminent)
+                .tint(recorder.isRecording ? .red : .accentColor)
+                .controlSize(.large)
             }
-            .buttonStyle(.borderedProminent)
-            .tint(isCurrentlyRecording ? .red : .accentColor)
-            .controlSize(.large)
-            .disabled(onboardingState.allPhrasesRecorded)
 
             if onboardingState.allPhrasesRecorded {
                 Button("Continue") {
@@ -223,6 +235,7 @@ struct RecordingStepView: View {
 
             HStack {
                 Button("Back") {
+                    recorder.cleanup()
                     onboardingState.previousStep()
                 }
                 .buttonStyle(.bordered)
@@ -230,12 +243,15 @@ struct RecordingStepView: View {
                 Spacer()
             }
         }
+        .onDisappear {
+            recorder.cleanup()
+        }
     }
 
     private func circleColor(for index: Int) -> Color {
         if index < onboardingState.recordedSamples.count {
             return .green
-        } else if index == onboardingState.currentPhraseIndex && isCurrentlyRecording {
+        } else if index == onboardingState.currentPhraseIndex && recorder.isRecording {
             return .red
         } else {
             return .gray.opacity(0.3)
@@ -243,7 +259,7 @@ struct RecordingStepView: View {
     }
 
     private func toggleRecording() {
-        if isCurrentlyRecording {
+        if recorder.isRecording {
             stopRecording()
         } else {
             startRecording()
@@ -251,24 +267,27 @@ struct RecordingStepView: View {
     }
 
     private func startRecording() {
-        isCurrentlyRecording = true
-
-        // Start a timer to simulate recording (in real implementation, use AudioEngine)
-        recordingTimer = Timer.scheduledTimer(withTimeInterval: 3.0, repeats: false) { _ in
-            Task { @MainActor in
-                // Create mock audio sample for now - real implementation will use AudioEngine
-                let mockSamples = [Float](repeating: 0.1, count: 48000) // 3 seconds at 16kHz
-                let chunk = AudioChunk(samples: mockSamples)
-                onboardingState.addRecordedSample(chunk)
-                isCurrentlyRecording = false
+        isPreparing = true
+        permissionError = nil
+        
+        Task {
+            let prepared = await recorder.prepare()
+            isPreparing = false
+            
+            if prepared {
+                recorder.startRecording { [self] sample in
+                    onboardingState.addRecordedSample(sample)
+                }
+            } else {
+                permissionError = recorder.errorMessage ?? "Failed to access microphone"
             }
         }
     }
 
     private func stopRecording() {
-        recordingTimer?.invalidate()
-        recordingTimer = nil
-        isCurrentlyRecording = false
+        if let sample = recorder.stopRecording() {
+            onboardingState.addRecordedSample(sample)
+        }
     }
 }
 

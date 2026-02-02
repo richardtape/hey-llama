@@ -132,7 +132,9 @@ struct EnrollmentNameView: View {
 struct EnrollmentRecordingView: View {
     @ObservedObject var state: EnrollmentState
     @ObservedObject var appState: AppState
-    @State private var recordingTimer: Timer?
+    @StateObject private var recorder = EnrollmentRecorder()
+    @State private var isPreparing = false
+    @State private var permissionError: String?
 
     var body: some View {
         VStack(spacing: 16) {
@@ -164,20 +166,30 @@ struct EnrollmentRecordingView: View {
             }
 
             // Recording indicator
-            if state.isRecording {
+            if recorder.isRecording {
                 HStack {
                     Circle().fill(Color.red).frame(width: 10, height: 10)
-                    Text("Recording...")
+                    Text("Recording... speak now, pause when done")
                 }
                 .foregroundColor(.red)
             }
 
-            AudioLevelBar(level: appState.audioLevel)
+            // Permission error
+            if let error = permissionError {
+                Text(error)
+                    .foregroundColor(.red)
+                    .font(.caption)
+                    .multilineTextAlignment(.center)
+            }
+
+            AudioLevelBar(level: recorder.isRecording ? recorder.audioLevel : 0)
                 .frame(height: 6)
 
             Spacer()
 
-            if state.allPhrasesRecorded {
+            if isPreparing {
+                ProgressView("Requesting microphone access...")
+            } else if state.allPhrasesRecorded {
                 Button("Process Voice Samples") {
                     state.step = .processing
                 }
@@ -185,40 +197,60 @@ struct EnrollmentRecordingView: View {
             } else {
                 Button(action: toggleRecording) {
                     HStack {
-                        Image(systemName: state.isRecording ? "stop.fill" : "mic.fill")
-                        Text(state.isRecording ? "Stop" : "Record")
+                        Image(systemName: recorder.isRecording ? "stop.fill" : "mic.fill")
+                        Text(recorder.isRecording ? "Stop" : "Record")
                     }
                 }
                 .buttonStyle(.borderedProminent)
-                .tint(state.isRecording ? .red : .accentColor)
+                .tint(recorder.isRecording ? .red : .accentColor)
             }
 
             Button("Back") {
+                recorder.cleanup()
                 state.step = .enterName
             }
             .buttonStyle(.bordered)
+        }
+        .onDisappear {
+            recorder.cleanup()
         }
     }
 
     private func dotColor(for index: Int) -> Color {
         if index < state.recordedSamples.count { return .green }
-        else if index == state.currentPhraseIndex && state.isRecording { return .red }
+        else if index == state.currentPhraseIndex && recorder.isRecording { return .red }
         else { return .gray.opacity(0.3) }
     }
 
     private func toggleRecording() {
-        if state.isRecording {
-            recordingTimer?.invalidate()
-            state.isRecording = false
+        if recorder.isRecording {
+            stopRecording()
         } else {
-            state.isRecording = true
-            recordingTimer = Timer.scheduledTimer(withTimeInterval: 3.0, repeats: false) { _ in
-                Task { @MainActor in
-                    let mockSamples = [Float](repeating: 0.1, count: 48000)
-                    state.addRecordedSample(AudioChunk(samples: mockSamples))
-                    state.isRecording = false
+            startRecording()
+        }
+    }
+
+    private func startRecording() {
+        isPreparing = true
+        permissionError = nil
+        
+        Task {
+            let prepared = await recorder.prepare()
+            isPreparing = false
+            
+            if prepared {
+                recorder.startRecording { [self] sample in
+                    state.addRecordedSample(sample)
                 }
+            } else {
+                permissionError = recorder.errorMessage ?? "Failed to access microphone"
             }
+        }
+    }
+
+    private func stopRecording() {
+        if let sample = recorder.stopRecording() {
+            state.addRecordedSample(sample)
         }
     }
 }
