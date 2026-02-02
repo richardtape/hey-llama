@@ -8,7 +8,7 @@ struct SettingsView: View {
                     Label("General", systemImage: "gear")
                 }
 
-            Text("Audio settings coming in Milestone 1")
+            AudioSettingsPlaceholder()
                 .tabItem {
                     Label("Audio", systemImage: "waveform")
                 }
@@ -30,8 +30,22 @@ struct SettingsView: View {
 struct GeneralSettingsView: View {
     var body: some View {
         Form {
-            Text("General settings will be added in Milestone 6")
-                .foregroundColor(.secondary)
+            Section {
+                Text("Wake phrase, launch at login, and other general settings will be added in Milestone 6.")
+                    .foregroundColor(.secondary)
+            }
+        }
+        .padding()
+    }
+}
+
+struct AudioSettingsPlaceholder: View {
+    var body: some View {
+        Form {
+            Section {
+                Text("Audio device selection, silence threshold, and microphone testing will be added in Milestone 6.")
+                    .foregroundColor(.secondary)
+            }
         }
         .padding()
     }
