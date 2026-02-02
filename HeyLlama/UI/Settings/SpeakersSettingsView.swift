@@ -5,12 +5,15 @@ struct SpeakersSettingsView: View {
     @State private var speakers: [Speaker] = []
     @State private var speakerToDelete: Speaker?
     @State private var showDeleteConfirmation = false
+    @State private var isLoading = false
     @Environment(\.openWindow) private var openWindow
 
     var body: some View {
         Form {
             Section {
-                if speakers.isEmpty {
+                if isLoading {
+                    ProgressView("Loading speakers...")
+                } else if speakers.isEmpty {
                     Text("No speakers enrolled")
                         .foregroundColor(.secondary)
                 } else {
@@ -25,6 +28,12 @@ struct SpeakersSettingsView: View {
                 HStack {
                     Text("Enrolled Speakers")
                     Spacer()
+                    Button(action: loadSpeakers) {
+                        Image(systemName: "arrow.clockwise")
+                    }
+                    .buttonStyle(.borderless)
+                    .help("Refresh speaker list")
+                    
                     Button(action: {
                         openWindow(id: "enrollment")
                     }) {
@@ -36,6 +45,9 @@ struct SpeakersSettingsView: View {
         }
         .formStyle(.grouped)
         .padding()
+        .task {
+            await loadSpeakersAsync()
+        }
         .onAppear {
             loadSpeakers()
         }
@@ -55,14 +67,20 @@ struct SpeakersSettingsView: View {
 
     private func loadSpeakers() {
         Task {
-            speakers = await appState.coordinator.getEnrolledSpeakers()
+            await loadSpeakersAsync()
         }
+    }
+    
+    private func loadSpeakersAsync() async {
+        isLoading = true
+        speakers = await appState.coordinator.getEnrolledSpeakers()
+        isLoading = false
     }
 
     private func removeSpeaker(_ speaker: Speaker) {
         Task {
             await appState.coordinator.removeSpeaker(speaker)
-            loadSpeakers()
+            await loadSpeakersAsync()
         }
     }
 }
