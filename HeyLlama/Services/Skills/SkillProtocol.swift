@@ -17,10 +17,12 @@ struct SkillContext: Sendable {
 struct SkillResult {
     let text: String
     let data: [String: Any]?
+    let summary: SkillSummary?
 
-    init(text: String, data: [String: Any]? = nil) {
+    init(text: String, data: [String: Any]? = nil, summary: SkillSummary? = nil) {
         self.text = text
         self.data = data
+        self.summary = summary
     }
 }
 

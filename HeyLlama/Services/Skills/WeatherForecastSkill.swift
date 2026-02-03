@@ -66,11 +66,22 @@ struct WeatherForecastSkill {
             locationName: args.location
         )
 
+        let summary = SkillSummary(
+            skillId: "weather.forecast",
+            status: .success,
+            summary: responseText,
+            details: [
+                "temperature": weather.currentWeather.temperature.value,
+                "temperatureUnit": weather.currentWeather.temperature.unit.symbol,
+                "condition": weather.currentWeather.condition.description
+            ]
+        )
+
         return SkillResult(text: responseText, data: [
             "temperature": weather.currentWeather.temperature.value,
             "temperatureUnit": weather.currentWeather.temperature.unit.symbol,
             "condition": weather.currentWeather.condition.description
-        ])
+        ], summary: summary)
     }
 
     // MARK: - Private Helpers

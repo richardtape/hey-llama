@@ -80,13 +80,25 @@ struct RemindersAddItemSkill {
         }
         response += "."
 
+        let summary = SkillSummary(
+            skillId: "reminders.add_item",
+            status: .success,
+            summary: response,
+            details: [
+                "listName": targetCalendar.title,
+                "itemName": args.itemName,
+                "reminderId": reminder.calendarItemIdentifier
+            ]
+        )
+
         return SkillResult(
             text: response,
             data: [
                 "listName": targetCalendar.title,
                 "itemName": args.itemName,
                 "reminderId": reminder.calendarItemIdentifier
-            ]
+            ],
+            summary: summary
         )
     }
 }

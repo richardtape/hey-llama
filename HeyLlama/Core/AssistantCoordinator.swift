@@ -407,11 +407,11 @@ final class AssistantCoordinator: ObservableObject {
     // MARK: - Action Plan Processing
 
     /// Process LLM response as an action plan (JSON) or plain text
-    func processActionPlan(from response: String) async throws -> String {
+    func processActionPlan(from response: String, userRequest: String? = nil) async throws -> String {
         // Try to parse as JSON action plan
         do {
             let plan = try LLMActionPlan.parse(from: response)
-            return try await executeActionPlan(plan)
+            return try await executeActionPlan(plan, userRequest: userRequest)
         } catch {
             // If parsing fails, treat the response as plain text
             // This handles cases where the LLM doesn't return valid JSON
@@ -436,7 +436,7 @@ final class AssistantCoordinator: ObservableObject {
         print("[LLM] Raw response: \(llmResponse)")
 
         do {
-            return try await processActionPlanStrict(from: llmResponse)
+            return try await processActionPlanStrict(from: llmResponse, userRequest: prompt)
         } catch {
             guard skillsManifest != nil else {
                 print("Failed to parse action plan, treating as plain text: \(error)")
@@ -453,7 +453,7 @@ final class AssistantCoordinator: ObservableObject {
             print("[LLM] Retry response: \(retryResponse)")
 
             do {
-                return try await processActionPlanStrict(from: retryResponse)
+                return try await processActionPlanStrict(from: retryResponse, userRequest: prompt)
             } catch {
                 print("Failed to parse retry action plan, treating as plain text: \(error)")
                 return llmResponse
@@ -461,12 +461,12 @@ final class AssistantCoordinator: ObservableObject {
         }
     }
 
-    private func processActionPlanStrict(from response: String) async throws -> String {
+    private func processActionPlanStrict(from response: String, userRequest: String? = nil) async throws -> String {
         let plan = try LLMActionPlan.parse(from: response)
-        return try await executeActionPlan(plan)
+        return try await executeActionPlan(plan, userRequest: userRequest)
     }
 
-    private func executeActionPlan(_ plan: LLMActionPlan) async throws -> String {
+    private func executeActionPlan(_ plan: LLMActionPlan, userRequest: String? = nil) async throws -> String {
         switch plan {
         case .respond(let text):
             print("[LLM] Action plan: respond")
@@ -474,7 +474,7 @@ final class AssistantCoordinator: ObservableObject {
         case .callSkills(let calls):
             let callSummary = calls.map { "\($0.skillId)" }.joined(separator: ", ")
             print("[LLM] Action plan: call_skills -> \(callSummary)")
-            return try await executeSkillCalls(calls)
+            return try await executeSkillCalls(calls, userRequest: userRequest)
         }
     }
 
@@ -489,16 +489,19 @@ final class AssistantCoordinator: ObservableObject {
 
 
     /// Execute skill calls from an action plan
-    private func executeSkillCalls(_ calls: [SkillCall]) async throws -> String {
+    private func executeSkillCalls(_ calls: [SkillCall], userRequest: String? = nil) async throws -> String {
         var results: [String] = []
+        var summaries: [SkillSummary] = []
 
         for call in calls {
             guard let skill = skillsRegistry.skill(withId: call.skillId) else {
+                // Don't add to summaries - skill doesn't exist
                 results.append("I couldn't find the skill '\(call.skillId)'.")
                 continue
             }
 
             guard skillsRegistry.isSkillEnabled(call.skillId) else {
+                // Don't add to summaries - skill is disabled
                 results.append("The \(skill.name) skill is currently disabled. You can enable it in Settings.")
                 continue
             }
@@ -507,7 +510,16 @@ final class AssistantCoordinator: ObservableObject {
             let missing = await permissionManager.missingPermissions(for: skill)
             if !missing.isEmpty {
                 let missingNames = missing.map { $0.displayName }.joined(separator: ", ")
-                results.append("The \(skill.name) skill requires \(missingNames) permission. Please grant access in System Settings.")
+                let message = "The \(skill.name) skill requires \(missingNames) permission. Please grant access in System Settings."
+                results.append(message)
+                // Add to summaries for permission errors since skill would run if permitted
+                if skill.includesInResponseAgent {
+                    summaries.append(SkillSummary(
+                        skillId: call.skillId,
+                        status: .failed,
+                        summary: message
+                    ))
+                }
                 continue
             }
 
@@ -520,10 +532,55 @@ final class AssistantCoordinator: ObservableObject {
                 )
                 let result = try await skill.run(argumentsJSON: argsJSON, context: context)
                 results.append(result.text)
+
+                // Use skill's summary if available, otherwise create one
+                if let summary = result.summary, skill.includesInResponseAgent {
+                    summaries.append(summary)
+                } else if skill.includesInResponseAgent {
+                    summaries.append(SkillSummary(
+                        skillId: call.skillId,
+                        status: .success,
+                        summary: result.text
+                    ))
+                }
             } catch let error as SkillError {
-                results.append("Error with \(skill.name): \(error.localizedDescription)")
+                let message = "Error with \(skill.name): \(error.localizedDescription)"
+                results.append(message)
+                if skill.includesInResponseAgent {
+                    summaries.append(SkillSummary(
+                        skillId: call.skillId,
+                        status: .failed,
+                        summary: message
+                    ))
+                }
             } catch {
-                results.append("An error occurred while running \(skill.name).")
+                let message = "An error occurred while running \(skill.name)."
+                results.append(message)
+                if skill.includesInResponseAgent {
+                    summaries.append(SkillSummary(
+                        skillId: call.skillId,
+                        status: .failed,
+                        summary: message
+                    ))
+                }
+            }
+        }
+
+        // If we have summaries and a user request, use ResponseAgent
+        if !summaries.isEmpty {
+            do {
+                let speakerName = currentSpeaker?.name
+                let response = try await ResponseAgent.generateResponse(
+                    userRequest: userRequest ?? "User request",
+                    speakerName: speakerName,
+                    summaries: summaries,
+                    llmService: llmService
+                )
+                return response
+            } catch {
+                // Fallback to deterministic concatenation if ResponseAgent fails
+                print("ResponseAgent failed, using fallback: \(error)")
+                return results.joined(separator: " ")
             }
         }
 

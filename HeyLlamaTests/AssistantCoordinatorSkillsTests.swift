@@ -138,6 +138,26 @@ final class AssistantCoordinatorSkillsTests: XCTestCase {
         XCTAssertEqual(count, 2)
     }
 
+    func testResponseAgentRunsAfterSkillCalls() async throws {
+        let mockLLM = MockLLMService()
+        await mockLLM.setMockResponse("Personalized response")
+
+        var config = SkillsConfig()
+        config.enabledSkillIds = ["weather.forecast"]
+
+        let coordinator = AssistantCoordinator(llmService: mockLLM)
+        coordinator.updateSkillsConfig(config)
+
+        let result = try await coordinator.processActionPlan(
+            from: """
+            {"type":"call_skills","calls":[{"skillId":"weather.forecast","arguments":{"when":"today"}}]}
+            """,
+            userRequest: "What's the weather?"
+        )
+
+        XCTAssertEqual(result, "Personalized response")
+    }
+
     func testRefreshConfigIfNeededUpdatesSkillsFromDisk() async throws {
         let tempDirectory = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString)
