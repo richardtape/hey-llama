@@ -234,14 +234,18 @@ actor AppleIntelligenceProvider: LLMServiceProtocol {
 
         @Generable
         struct Arguments: ConvertibleFromGeneratedContent {
-            var when: String
+            var when: String?
             var location: String?
         }
 
         func call(arguments: Arguments) async throws -> String {
-            var args: [String: Any] = ["when": arguments.when]
-            if let location = arguments.location, !location.isEmpty {
-                args["location"] = location
+            let trimmedWhen = arguments.when?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            let whenValue = trimmedWhen.isEmpty ? "today" : trimmedWhen
+            var args: [String: Any] = ["when": whenValue]
+
+            let trimmedLocation = arguments.location?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            if !trimmedLocation.isEmpty {
+                args["location"] = trimmedLocation
             }
             await recorder.record(ToolInvocation(skillId: name, arguments: args))
             return "OK"
