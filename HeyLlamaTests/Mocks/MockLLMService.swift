@@ -4,11 +4,13 @@ import Foundation
 actor MockLLMService: LLMServiceProtocol {
     private var _isConfigured: Bool = true
     private var mockResponse: String = ""
+    private var mockResponses: [String] = []
     private var mockError: Error?
 
     private(set) var lastPrompt: String?
     private(set) var lastContext: CommandContext?
     private(set) var lastConversationHistory: [ConversationTurn] = []
+    private(set) var lastSkillsManifest: String?
     private(set) var completionCount: Int = 0
 
     var isConfigured: Bool {
@@ -21,6 +23,12 @@ actor MockLLMService: LLMServiceProtocol {
 
     func setMockResponse(_ response: String) {
         self.mockResponse = response
+        self.mockResponses = []
+        self.mockError = nil
+    }
+
+    func setMockResponses(_ responses: [String]) {
+        self.mockResponses = responses
         self.mockError = nil
     }
 
@@ -31,15 +39,21 @@ actor MockLLMService: LLMServiceProtocol {
     func complete(
         prompt: String,
         context: CommandContext?,
-        conversationHistory: [ConversationTurn]
+        conversationHistory: [ConversationTurn],
+        skillsManifest: String?
     ) async throws -> String {
         lastPrompt = prompt
         lastContext = context
         lastConversationHistory = conversationHistory
+        lastSkillsManifest = skillsManifest
         completionCount += 1
 
         if let error = mockError {
             throw error
+        }
+
+        if !mockResponses.isEmpty {
+            return mockResponses.removeFirst()
         }
 
         return mockResponse
@@ -49,6 +63,7 @@ actor MockLLMService: LLMServiceProtocol {
         lastPrompt = nil
         lastContext = nil
         lastConversationHistory = []
+        lastSkillsManifest = nil
         completionCount = 0
     }
 }

@@ -24,6 +24,12 @@
     <true/>
     <key>NSMicrophoneUsageDescription</key>
     <string>Hey Llama needs microphone access to listen for voice commands.</string>
+    <key>NSLocationUsageDescription</key>
+    <string>Hey Llama needs your location to provide accurate weather forecasts.</string>
+    <key>NSLocationWhenInUseUsageDescription</key>
+    <string>Hey Llama needs your location to provide accurate weather forecasts.</string>
+    <key>NSRemindersFullAccessUsageDescription</key>
+    <string>Hey Llama needs access to Reminders to add items to your lists.</string>
     <key>NSPrincipalClass</key>
     <string>NSApplication</string>
 </dict>

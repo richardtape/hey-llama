@@ -149,4 +149,15 @@ final class ToolsRegistryTests: XCTestCase {
         XCTAssertTrue(manifest.contains("when"))
         XCTAssertTrue(manifest.contains("today"))
     }
+
+    func testManifestIncludesJsonOnlyInstruction() {
+        var config = SkillsConfig()
+        config.enabledSkillIds = ["weather.forecast"]
+        let registry = SkillsRegistry(config: config)
+
+        let manifest = registry.generateSkillsManifest()
+
+        XCTAssertTrue(manifest.contains("single JSON object"))
+        XCTAssertTrue(manifest.contains("Do not wrap"))
+    }
 }

@@ -37,17 +37,27 @@ protocol LLMServiceProtocol: Sendable {
     ///   - prompt: The user's command/question
     ///   - context: Optional command context including speaker info
     ///   - conversationHistory: Previous conversation turns for multi-turn context
-    /// - Returns: The LLM's response text
+    ///   - skillsManifest: Optional skills manifest to inject into prompt for structured output
+    /// - Returns: The LLM's response text (may be JSON for structured output)
+    func complete(
+        prompt: String,
+        context: CommandContext?,
+        conversationHistory: [ConversationTurn],
+        skillsManifest: String?
+    ) async throws -> String
+}
+
+/// Extension with convenience methods
+extension LLMServiceProtocol {
+    func complete(prompt: String, context: CommandContext?) async throws -> String {
+        try await complete(prompt: prompt, context: context, conversationHistory: [], skillsManifest: nil)
+    }
+
     func complete(
         prompt: String,
         context: CommandContext?,
         conversationHistory: [ConversationTurn]
-    ) async throws -> String
-}
-
-/// Extension with convenience method
-extension LLMServiceProtocol {
-    func complete(prompt: String, context: CommandContext?) async throws -> String {
-        try await complete(prompt: prompt, context: context, conversationHistory: [])
+    ) async throws -> String {
+        try await complete(prompt: prompt, context: context, conversationHistory: conversationHistory, skillsManifest: nil)
     }
 }

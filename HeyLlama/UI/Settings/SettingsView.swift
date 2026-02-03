@@ -13,6 +13,11 @@ struct SettingsView: View {
                     Label("AI", systemImage: "brain")
                 }
 
+            SkillsSettingsView()
+                .tabItem {
+                    Label("Skills", systemImage: "wand.and.stars")
+                }
+
             AudioSettingsPlaceholder()
                 .tabItem {
                     Label("Audio", systemImage: "waveform")

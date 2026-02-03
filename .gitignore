@@ -4,6 +4,7 @@ DerivedData/
 *.xcodeproj/xcuserdata/
 *.xcworkspace/xcuserdata/
 *.xcodeproj/project.xcworkspace/xcshareddata/IDEWorkspaceChecks.plist
+HeyLlama.xcodeproj/project.pbxproj
 
 # Swift Package Manager
 .build/

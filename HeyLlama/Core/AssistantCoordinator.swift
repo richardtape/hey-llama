@@ -15,6 +15,10 @@ final class AssistantCoordinator: ObservableObject {
     @Published private(set) var enrolledSpeakers: [Speaker] = []
     @Published private(set) var llmConfigured: Bool = false
 
+    // Skills support
+    private(set) var skillsRegistry: SkillsRegistry
+    private let permissionManager: SkillPermissionManager
+
     private let audioEngine: AudioEngine
     private let vadService: VADService
     private let audioBuffer: AudioBuffer
@@ -44,6 +48,10 @@ final class AssistantCoordinator: ObservableObject {
         self.sttService = sttService ?? STTService()
         self.speakerService = speakerService ?? SpeakerService()
 
+        // Initialize skills
+        self.skillsRegistry = SkillsRegistry(config: config.skills)
+        self.permissionManager = SkillPermissionManager()
+
         // Track if LLM service was injected (for testing)
         if let injectedLLM = llmService {
             self.llmService = injectedLLM
@@ -52,6 +60,7 @@ final class AssistantCoordinator: ObservableObject {
             self.llmService = LLMService(config: config.llm)
             self.useInjectedLLMService = false
         }
+
 
         self.commandProcessor = CommandProcessor(wakePhrase: config.wakePhrase)
         self.speakerStore = SpeakerStore()
@@ -169,9 +178,17 @@ final class AssistantCoordinator: ObservableObject {
             maxTurns: config.llm.maxConversationTurns
         )
 
+        // Update skills configuration
+        skillsRegistry.updateConfig(config.skills)
+
         // Update LLM configured status
         llmConfigured = await llmService.isConfigured
         print("Config reloaded. LLM configured: \(llmConfigured)")
+    }
+
+    /// Update skills configuration
+    func updateSkillsConfig(_ newConfig: SkillsConfig) {
+        skillsRegistry.updateConfig(newConfig)
     }
 
     /// Clear conversation history (e.g., for "new conversation" command)
@@ -290,26 +307,34 @@ final class AssistantCoordinator: ObservableObject {
         // Get conversation history for context
         let history = conversationManager.getRecentHistory()
 
+        // Generate skills manifest for enabled skills
+        let skillsManifest = skillsRegistry.generateSkillsManifest()
+        let enabledSkillIds = skillsRegistry.enabledSkills.map { $0.id }
+        print("[Skills] Enabled skill IDs: \(enabledSkillIds)")
+
         do {
-            // Call LLM
-            let response = try await llmService.complete(
+            let finalResponse = try await completeAndProcessActionPlan(
                 prompt: commandText,
                 context: context,
-                conversationHistory: history
+                conversationHistory: history,
+                skillsManifest: skillsManifest.contains("No skills") ? nil : skillsManifest
             )
 
             // Update conversation history
             conversationManager.addTurn(role: .user, content: commandText)
-            conversationManager.addTurn(role: .assistant, content: response)
+            conversationManager.addTurn(role: .assistant, content: finalResponse)
 
             // Update UI with response
-            lastResponse = response
-            print("LLM Response: \(response)")
+            lastResponse = finalResponse
+            print("Response: \(finalResponse)")
 
-            // TODO: Milestone 5/6 - TTS/Audio response
+            // TODO: Milestone 6 - TTS/Audio response
 
         } catch let error as LLMError {
             print("LLM Error: \(error.localizedDescription)")
+            lastResponse = "[Error: \(error.localizedDescription)]"
+        } catch let error as SkillError {
+            print("Skill Error: \(error.localizedDescription)")
             lastResponse = "[Error: \(error.localizedDescription)]"
         } catch {
             print("Unexpected error: \(error)")
@@ -318,5 +343,132 @@ final class AssistantCoordinator: ObservableObject {
 
         // Return to listening state
         state = .listening
+    }
+
+    // MARK: - Action Plan Processing
+
+    /// Process LLM response as an action plan (JSON) or plain text
+    func processActionPlan(from response: String) async throws -> String {
+        // Try to parse as JSON action plan
+        do {
+            let plan = try LLMActionPlan.parse(from: response)
+            return try await executeActionPlan(plan)
+        } catch {
+            // If parsing fails, treat the response as plain text
+            // This handles cases where the LLM doesn't return valid JSON
+            print("Failed to parse action plan, treating as plain text: \(error)")
+            return response
+        }
+    }
+
+    /// Complete and process an action plan, retrying once if JSON is invalid.
+    func completeAndProcessActionPlan(
+        prompt: String,
+        context: CommandContext?,
+        conversationHistory: [ConversationTurn],
+        skillsManifest: String?
+    ) async throws -> String {
+        let llmResponse = try await llmService.complete(
+            prompt: prompt,
+            context: context,
+            conversationHistory: conversationHistory,
+            skillsManifest: skillsManifest
+        )
+        print("[LLM] Raw response: \(llmResponse)")
+
+        do {
+            return try await processActionPlanStrict(from: llmResponse)
+        } catch {
+            guard skillsManifest != nil else {
+                print("Failed to parse action plan, treating as plain text: \(error)")
+                return llmResponse
+            }
+
+            let retryPrompt = buildRetryPrompt(originalPrompt: prompt)
+            let retryResponse = try await llmService.complete(
+                prompt: retryPrompt,
+                context: context,
+                conversationHistory: conversationHistory,
+                skillsManifest: skillsManifest
+            )
+            print("[LLM] Retry response: \(retryResponse)")
+
+            do {
+                return try await processActionPlanStrict(from: retryResponse)
+            } catch {
+                print("Failed to parse retry action plan, treating as plain text: \(error)")
+                return llmResponse
+            }
+        }
+    }
+
+    private func processActionPlanStrict(from response: String) async throws -> String {
+        let plan = try LLMActionPlan.parse(from: response)
+        return try await executeActionPlan(plan)
+    }
+
+    private func executeActionPlan(_ plan: LLMActionPlan) async throws -> String {
+        switch plan {
+        case .respond(let text):
+            print("[LLM] Action plan: respond")
+            return text
+        case .callSkills(let calls):
+            let callSummary = calls.map { "\($0.skillId)" }.joined(separator: ", ")
+            print("[LLM] Action plan: call_skills -> \(callSummary)")
+            return try await executeSkillCalls(calls)
+        }
+    }
+
+    private func buildRetryPrompt(originalPrompt: String) -> String {
+        """
+        Return ONLY a single JSON action plan for the user request below.
+        Do not add any extra text.
+
+        User request: \(originalPrompt)
+        """
+    }
+
+
+    /// Execute skill calls from an action plan
+    private func executeSkillCalls(_ calls: [SkillCall]) async throws -> String {
+        var results: [String] = []
+
+        for call in calls {
+            guard let skill = skillsRegistry.skill(withId: call.skillId) else {
+                results.append("I couldn't find the skill '\(call.skillId)'.")
+                continue
+            }
+
+            guard skillsRegistry.isSkillEnabled(call.skillId) else {
+                results.append("The \(skill.name) skill is currently disabled. You can enable it in Settings.")
+                continue
+            }
+
+            // Check permissions
+            let hasPermissions = await permissionManager.hasAllPermissions(for: skill)
+            if !hasPermissions {
+                let missing = await permissionManager.missingPermissions(for: skill)
+                let missingNames = missing.map { $0.displayName }.joined(separator: ", ")
+                results.append("The \(skill.name) skill requires \(missingNames) permission. Please grant access in System Settings.")
+                continue
+            }
+
+            // Execute the skill
+            do {
+                let argsJSON = try call.argumentsAsJSON()
+                let context = SkillContext(
+                    speaker: currentSpeaker,
+                    source: .localMic
+                )
+                let result = try await skill.run(argumentsJSON: argsJSON, context: context)
+                results.append(result.text)
+            } catch let error as SkillError {
+                results.append("Error with \(skill.name): \(error.localizedDescription)")
+            } catch {
+                results.append("An error occurred while running \(skill.name).")
+            }
+        }
+
+        return results.joined(separator: " ")
     }
 }

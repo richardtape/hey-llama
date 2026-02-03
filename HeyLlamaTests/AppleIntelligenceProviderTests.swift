@@ -108,6 +108,85 @@ final class AppleIntelligenceProviderTests: XCTestCase {
         XCTAssertNotNil(provider)
     }
 
+    func testBuildActionPlanJSONWithToolCalls() throws {
+        let calls = [
+            AppleIntelligenceProvider.ToolInvocation(
+                skillId: "reminders.add_item",
+                arguments: ["listName": "Groceries", "itemName": "Milk"]
+            )
+        ]
+
+        let json = try AppleIntelligenceProvider.buildActionPlanJSON(
+            responseText: "ignored",
+            toolCalls: calls
+        )
+
+        XCTAssertTrue(json.contains("\"type\":\"call_skills\""))
+        XCTAssertTrue(json.contains("\"reminders.add_item\""))
+        XCTAssertTrue(json.contains("\"listName\""))
+    }
+
+    func testBuildActionPlanJSONWithTextOnly() throws {
+        let json = try AppleIntelligenceProvider.buildActionPlanJSON(
+            responseText: "Hello there",
+            toolCalls: []
+        )
+
+        XCTAssertTrue(json.contains("\"type\":\"respond\""))
+        XCTAssertTrue(json.contains("Hello there"))
+    }
+
+    func testBuildActionPlanJSONPrefersToolCalls() throws {
+        let calls = [
+            AppleIntelligenceProvider.ToolInvocation(
+                skillId: "weather.forecast",
+                arguments: ["when": "today"]
+            )
+        ]
+
+        let json = try AppleIntelligenceProvider.buildActionPlanJSON(
+            responseText: "This should not be used",
+            toolCalls: calls
+        )
+
+        XCTAssertTrue(json.contains("\"type\":\"call_skills\""))
+        XCTAssertFalse(json.contains("This should not be used"))
+    }
+
+    func testBuildInstructionsForToolCallingStripsJsonRules() {
+        let template = """
+        You are Llama. The current user is {speaker_name}.
+        You must respond with a single JSON object only.
+        Do not wrap in code fences or add extra text.
+        Never put tool call JSON inside the "text" field.
+        """
+
+        let instructions = AppleIntelligenceProvider.buildInstructions(
+            template: template,
+            speakerName: "Rich",
+            skillsManifest: "SKILLS",
+            useToolCalling: true
+        )
+
+        XCTAssertTrue(instructions.contains("Rich"))
+        XCTAssertFalse(instructions.lowercased().contains("json"))
+        XCTAssertFalse(instructions.contains("SKILLS"))
+    }
+
+    func testBuildInstructionsForJsonParsingIncludesManifest() {
+        let template = "You are Llama for {speaker_name}."
+
+        let instructions = AppleIntelligenceProvider.buildInstructions(
+            template: template,
+            speakerName: "Rich",
+            skillsManifest: "SKILLS",
+            useToolCalling: false
+        )
+
+        XCTAssertTrue(instructions.contains("Rich"))
+        XCTAssertTrue(instructions.contains("SKILLS"))
+    }
+
     // MARK: - Integration Test (only runs when Apple Intelligence is available)
 
     func testCompletionWhenAvailable() async throws {

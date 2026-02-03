@@ -11,6 +11,11 @@ actor AppleIntelligenceProvider: LLMServiceProtocol {
     private let config: AppleIntelligenceConfig
     private let systemPromptTemplate: String
 
+    struct ToolInvocation {
+        let skillId: String
+        let arguments: [String: Any]
+    }
+
     /// Check if Apple Intelligence is available on this device
     /// Requires macOS 26+ (Tahoe) or iOS 26+ and Apple Silicon
     nonisolated var isAvailable: Bool {
@@ -47,7 +52,8 @@ actor AppleIntelligenceProvider: LLMServiceProtocol {
     func complete(
         prompt: String,
         context: CommandContext?,
-        conversationHistory: [ConversationTurn]
+        conversationHistory: [ConversationTurn],
+        skillsManifest: String?
     ) async throws -> String {
         guard config.enabled else {
             throw LLMError.notConfigured
@@ -62,7 +68,8 @@ actor AppleIntelligenceProvider: LLMServiceProtocol {
             return try await performCompletion(
                 prompt: prompt,
                 context: context,
-                conversationHistory: conversationHistory
+                conversationHistory: conversationHistory,
+                skillsManifest: skillsManifest
             )
         }
         #endif
@@ -112,26 +119,35 @@ actor AppleIntelligenceProvider: LLMServiceProtocol {
     private func performCompletion(
         prompt: String,
         context: CommandContext?,
-        conversationHistory: [ConversationTurn]
+        conversationHistory: [ConversationTurn],
+        skillsManifest: String?
     ) async throws -> String {
         // Build the system prompt with speaker name
         let speakerName = context?.speaker?.name ?? "Guest"
-        let systemPrompt = systemPromptTemplate.replacingOccurrences(
-            of: "{speaker_name}",
-            with: speakerName
+        let systemPrompt = Self.buildInstructions(
+            template: systemPromptTemplate,
+            speakerName: speakerName,
+            skillsManifest: skillsManifest,
+            useToolCalling: skillsManifest != nil
         )
-
-        // Create session with instructions
-        let session = LanguageModelSession {
-            systemPrompt
-        }
 
         // Build the full prompt including conversation history
         let fullPrompt = buildPromptWithHistory(prompt: prompt, history: conversationHistory)
 
         do {
+            let recorder = ToolInvocationRecorder()
+            let tools = makeTools(recorder: recorder, includeSkills: skillsManifest != nil)
+
+            let session = LanguageModelSession(
+                tools: tools,
+                instructions: systemPrompt
+            )
+
             let response = try await session.respond(to: fullPrompt)
-            return response.content.trimmingCharacters(in: .whitespacesAndNewlines)
+            let recordedCalls = await recorder.drain()
+
+            let responseText = response.content.trimmingCharacters(in: .whitespacesAndNewlines)
+            return try Self.buildActionPlanJSON(responseText: responseText, toolCalls: recordedCalls)
         } catch {
             // Map Foundation Models errors to our LLMError types
             throw mapError(error)
@@ -181,4 +197,132 @@ actor AppleIntelligenceProvider: LLMServiceProtocol {
         return .networkError(error.localizedDescription)
     }
     #endif
+
+    #if canImport(FoundationModels)
+    @available(macOS 26.0, iOS 26.0, *)
+    private func makeTools(
+        recorder: ToolInvocationRecorder,
+        includeSkills: Bool
+    ) -> [any Tool] {
+        guard includeSkills else { return [] }
+        return [
+            WeatherForecastTool(recorder: recorder),
+            RemindersAddItemTool(recorder: recorder)
+        ]
+    }
+
+    @available(macOS 26.0, iOS 26.0, *)
+    actor ToolInvocationRecorder {
+        private var calls: [ToolInvocation] = []
+
+        func record(_ call: ToolInvocation) {
+            calls.append(call)
+        }
+
+        func drain() -> [ToolInvocation] {
+            let drained = calls
+            calls.removeAll()
+            return drained
+        }
+    }
+
+    @available(macOS 26.0, iOS 26.0, *)
+    struct WeatherForecastTool: Tool {
+        let name: String = RegisteredSkill.weatherForecast.id
+        let description: String = RegisteredSkill.weatherForecast.skillDescription
+        let recorder: ToolInvocationRecorder
+
+        @Generable
+        struct Arguments: ConvertibleFromGeneratedContent {
+            var when: String
+            var location: String?
+        }
+
+        func call(arguments: Arguments) async throws -> String {
+            var args: [String: Any] = ["when": arguments.when]
+            if let location = arguments.location, !location.isEmpty {
+                args["location"] = location
+            }
+            await recorder.record(ToolInvocation(skillId: name, arguments: args))
+            return "OK"
+        }
+    }
+
+    @available(macOS 26.0, iOS 26.0, *)
+    struct RemindersAddItemTool: Tool {
+        let name: String = RegisteredSkill.remindersAddItem.id
+        let description: String = RegisteredSkill.remindersAddItem.skillDescription
+        let recorder: ToolInvocationRecorder
+
+        @Generable
+        struct Arguments: ConvertibleFromGeneratedContent {
+            var listName: String
+            var itemName: String
+            var notes: String?
+            var dueDateISO8601: String?
+        }
+
+        func call(arguments: Arguments) async throws -> String {
+            var args: [String: Any] = [
+                "listName": arguments.listName,
+                "itemName": arguments.itemName
+            ]
+            if let notes = arguments.notes, !notes.isEmpty {
+                args["notes"] = notes
+            }
+            if let dueDate = arguments.dueDateISO8601, !dueDate.isEmpty {
+                args["dueDateISO8601"] = dueDate
+            }
+            await recorder.record(ToolInvocation(skillId: name, arguments: args))
+            return "OK"
+        }
+    }
+    #endif
+
+    static func buildActionPlanJSON(responseText: String, toolCalls: [ToolInvocation]) throws -> String {
+        if !toolCalls.isEmpty {
+            let calls: [[String: Any]] = toolCalls.map { call in
+                [
+                    "skillId": call.skillId,
+                    "arguments": call.arguments
+                ]
+            }
+            let payload: [String: Any] = [
+                "type": "call_skills",
+                "calls": calls
+            ]
+            let data = try JSONSerialization.data(withJSONObject: payload, options: [])
+            return String(data: data, encoding: .utf8) ?? "{\"type\":\"call_skills\",\"calls\":[]}"
+        }
+
+        let payload: [String: Any] = [
+            "type": "respond",
+            "text": responseText
+        ]
+        let data = try JSONSerialization.data(withJSONObject: payload, options: [])
+        return String(data: data, encoding: .utf8) ?? "{\"type\":\"respond\",\"text\":\"\"}"
+    }
+
+    static func buildInstructions(
+        template: String,
+        speakerName: String,
+        skillsManifest: String?,
+        useToolCalling: Bool
+    ) -> String {
+        var instructions = template.replacingOccurrences(of: "{speaker_name}", with: speakerName)
+
+        if useToolCalling {
+            // Remove JSON-only instructions to avoid guardrails with tool calling
+            let lines = instructions.split(separator: "\n", omittingEmptySubsequences: false)
+            instructions = lines.filter { line in
+                !line.lowercased().contains("json")
+            }.joined(separator: "\n")
+        } else if let manifest = skillsManifest {
+            instructions += "\n\n--- SKILLS ---\n\(manifest)"
+        }
+
+        return instructions.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
 }
+
+extension AppleIntelligenceProvider.ToolInvocation: @unchecked Sendable {}

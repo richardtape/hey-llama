@@ -135,9 +135,12 @@ struct SkillsRegistry {
         }
 
         var manifest = "You have access to the following skills (tools). "
+        manifest += "You must respond with a single JSON object only. Do not wrap in code fences. "
+        manifest += "Do not add extra text before or after the JSON. "
         manifest += "To use a skill, respond with JSON in the format: "
         manifest += "{\"type\":\"call_skills\",\"calls\":[{\"skillId\":\"<id>\",\"arguments\":{...}}]}\n"
-        manifest += "To respond with text only, use: {\"type\":\"respond\",\"text\":\"<your response>\"}\n\n"
+        manifest += "To respond with text only, use: {\"type\":\"respond\",\"text\":\"<your response>\"}\n"
+        manifest += "Never put tool call JSON inside the \"text\" field.\n\n"
         manifest += "Available skills:\n\n"
 
         for skill in enabled {

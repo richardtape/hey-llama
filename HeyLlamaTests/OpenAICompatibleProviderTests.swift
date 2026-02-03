@@ -40,6 +40,7 @@ final class OpenAICompatibleProviderTests: XCTestCase {
         let provider = OpenAICompatibleProvider(config: config)
         let body = provider.buildRequestBody(
             systemPrompt: "You are helpful.",
+            skillsManifest: nil,
             prompt: "What time is it?",
             conversationHistory: []
         )
@@ -71,6 +72,7 @@ final class OpenAICompatibleProviderTests: XCTestCase {
 
         let body = provider.buildRequestBody(
             systemPrompt: "You are helpful.",
+            skillsManifest: nil,
             prompt: "What language there?",
             conversationHistory: history
         )

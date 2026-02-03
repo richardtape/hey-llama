@@ -37,20 +37,23 @@ actor LLMService: LLMServiceProtocol {
     func complete(
         prompt: String,
         context: CommandContext?,
-        conversationHistory: [ConversationTurn]
+        conversationHistory: [ConversationTurn],
+        skillsManifest: String?
     ) async throws -> String {
         switch config.provider {
         case .appleIntelligence:
             return try await appleIntelligenceProvider.complete(
                 prompt: prompt,
                 context: context,
-                conversationHistory: conversationHistory
+                conversationHistory: conversationHistory,
+                skillsManifest: skillsManifest
             )
         case .openAICompatible:
             return try await openAICompatibleProvider.complete(
                 prompt: prompt,
                 context: context,
-                conversationHistory: conversationHistory
+                conversationHistory: conversationHistory,
+                skillsManifest: skillsManifest
             )
         }
     }

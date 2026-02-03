@@ -24,7 +24,8 @@ actor OpenAICompatibleProvider: LLMServiceProtocol {
     func complete(
         prompt: String,
         context: CommandContext?,
-        conversationHistory: [ConversationTurn]
+        conversationHistory: [ConversationTurn],
+        skillsManifest: String?
     ) async throws -> String {
         guard isConfigured else {
             throw LLMError.notConfigured
@@ -48,6 +49,7 @@ actor OpenAICompatibleProvider: LLMServiceProtocol {
         // Build request body
         let body = buildRequestBody(
             systemPrompt: systemPrompt,
+            skillsManifest: skillsManifest,
             prompt: prompt,
             conversationHistory: conversationHistory
         )
@@ -86,15 +88,22 @@ actor OpenAICompatibleProvider: LLMServiceProtocol {
 
     nonisolated func buildRequestBody(
         systemPrompt: String,
+        skillsManifest: String?,
         prompt: String,
         conversationHistory: [ConversationTurn]
     ) -> [String: Any] {
         var messages: [[String: String]] = []
 
+        // Build full system message with skills manifest if provided
+        var fullSystemPrompt = systemPrompt
+        if let manifest = skillsManifest {
+            fullSystemPrompt += "\n\n--- SKILLS ---\n\(manifest)"
+        }
+
         // System message
         messages.append([
             "role": "system",
-            "content": systemPrompt
+            "content": fullSystemPrompt
         ])
 
         // Conversation history

@@ -231,4 +231,75 @@ final class LLMActionPlanTests: XCTestCase {
         XCTAssertEqual(calls.count, 1)
         XCTAssertTrue(calls[0].arguments.isEmpty)
     }
+
+    // MARK: - Markdown Code Fence Stripping Tests
+
+    func testDecodeWithMarkdownJsonCodeFence() throws {
+        let json = """
+        ```json
+        {"type":"respond","text":"Hello!"}
+        ```
+        """
+
+        let plan = try LLMActionPlan.parse(from: json)
+
+        guard case .respond(let text) = plan else {
+            XCTFail("Expected respond action")
+            return
+        }
+
+        XCTAssertEqual(text, "Hello!")
+    }
+
+    func testDecodeWithMarkdownPlainCodeFence() throws {
+        let json = """
+        ```
+        {"type":"respond","text":"Hello!"}
+        ```
+        """
+
+        let plan = try LLMActionPlan.parse(from: json)
+
+        guard case .respond(let text) = plan else {
+            XCTFail("Expected respond action")
+            return
+        }
+
+        XCTAssertEqual(text, "Hello!")
+    }
+
+    func testDecodeCallSkillsWithMarkdownCodeFence() throws {
+        let json = """
+        ```json
+        {"type":"call_skills","calls":[{"skillId":"weather.forecast","arguments":{"when":"today"}}]}
+        ```
+        """
+
+        let plan = try LLMActionPlan.parse(from: json)
+
+        guard case .callSkills(let calls) = plan else {
+            XCTFail("Expected call_skills action")
+            return
+        }
+
+        XCTAssertEqual(calls.count, 1)
+        XCTAssertEqual(calls[0].skillId, "weather.forecast")
+    }
+
+    func testDecodeWithLeadingAndTrailingText() throws {
+        let json = """
+        Sure! Here's the result:
+        {"type":"respond","text":"Hello from JSON"}
+        Thanks!
+        """
+
+        let plan = try LLMActionPlan.parse(from: json)
+
+        guard case .respond(let text) = plan else {
+            XCTFail("Expected respond action")
+            return
+        }
+
+        XCTAssertEqual(text, "Hello from JSON")
+    }
 }

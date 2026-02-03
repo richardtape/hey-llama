@@ -50,6 +50,7 @@ final class AssistantCoordinatorLLMTests: XCTestCase {
 
         let body = provider.buildRequestBody(
             systemPrompt: "Be helpful.",
+            skillsManifest: nil,
             prompt: "How are you?",
             conversationHistory: history
         )

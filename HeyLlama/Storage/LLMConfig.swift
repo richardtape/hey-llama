@@ -49,7 +49,10 @@ struct OpenAICompatibleConfig: Codable, Equatable, Sendable {
 private nonisolated let llmDefaultSystemPrompt = """
     You are Llama, a helpful voice assistant. Keep responses concise \
     and conversational, suitable for reading on a small UI display. \
-    The current user is {speaker_name}. Be friendly but brief.
+    The current user is {speaker_name}. Be friendly but brief. \
+    You must respond with a single JSON object only. Do not wrap in \
+    code fences or add extra text. Never put tool call JSON inside \
+    the "text" field.
     """
 
 /// Complete LLM configuration
