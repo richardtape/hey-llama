@@ -37,10 +37,12 @@ final class AssistantCoordinator: ObservableObject {
     init(
         sttService: (any STTServiceProtocol)? = nil,
         speakerService: (any SpeakerServiceProtocol)? = nil,
-        llmService: (any LLMServiceProtocol)? = nil
+        llmService: (any LLMServiceProtocol)? = nil,
+        configStore: ConfigStore? = nil
     ) {
-        self.configStore = ConfigStore()
-        self.config = configStore.loadConfig()
+        let store = configStore ?? ConfigStore()
+        self.configStore = store
+        self.config = store.loadConfig()
 
         self.audioEngine = AudioEngine()
         self.vadService = VADService()
@@ -186,6 +188,29 @@ final class AssistantCoordinator: ObservableObject {
         print("Config reloaded. LLM configured: \(llmConfigured)")
     }
 
+    /// Refresh configuration if it has changed on disk.
+    func refreshConfigIfNeeded() async {
+        let latest = configStore.loadConfig()
+        guard latest != config else {
+            return
+        }
+
+        config = latest
+
+        if !useInjectedLLMService {
+            llmService = LLMService(config: config.llm)
+        }
+
+        conversationManager = ConversationManager(
+            timeoutMinutes: config.llm.conversationTimeoutMinutes,
+            maxTurns: config.llm.maxConversationTurns
+        )
+
+        skillsRegistry.updateConfig(config.skills)
+        llmConfigured = await llmService.isConfigured
+        print("Config refreshed. LLM configured: \(llmConfigured)")
+    }
+
     /// Update skills configuration
     func updateSkillsConfig(_ newConfig: SkillsConfig) {
         skillsRegistry.updateConfig(newConfig)
@@ -306,6 +331,8 @@ final class AssistantCoordinator: ObservableObject {
 
         // Get conversation history for context
         let history = conversationManager.getRecentHistory()
+
+        await refreshConfigIfNeeded()
 
         // Generate skills manifest for enabled skills
         let skillsManifest = skillsRegistry.generateSkillsManifest()

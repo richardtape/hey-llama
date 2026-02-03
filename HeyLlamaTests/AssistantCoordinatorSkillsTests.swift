@@ -137,4 +137,30 @@ final class AssistantCoordinatorSkillsTests: XCTestCase {
         let count = await mockLLM.completionCount
         XCTAssertEqual(count, 2)
     }
+
+    func testRefreshConfigIfNeededUpdatesSkillsFromDisk() async throws {
+        let tempDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: tempDirectory, withIntermediateDirectories: true)
+
+        defer {
+            try? FileManager.default.removeItem(at: tempDirectory)
+        }
+
+        let store = ConfigStore(baseDirectory: tempDirectory)
+
+        var config = AssistantConfig.default
+        config.skills.enabledSkillIds = []
+        try store.saveConfig(config)
+
+        let coordinator = AssistantCoordinator(configStore: store)
+        coordinator.updateSkillsConfig(SkillsConfig())
+        XCTAssertTrue(coordinator.skillsRegistry.enabledSkills.isEmpty)
+
+        config.skills.enabledSkillIds = ["weather.forecast"]
+        try store.saveConfig(config)
+
+        await coordinator.refreshConfigIfNeeded()
+        XCTAssertTrue(coordinator.skillsRegistry.isSkillEnabled("weather.forecast"))
+    }
 }

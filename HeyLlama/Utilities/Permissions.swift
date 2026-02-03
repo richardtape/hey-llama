@@ -90,15 +90,31 @@ enum Permissions {
 @MainActor
 final class LocationPermissionRequester: NSObject, CLLocationManagerDelegate {
     static let shared = LocationPermissionRequester()
+    static let defaultAuthorizationStatusProvider: () -> CLAuthorizationStatus = {
+        CLLocationManager.authorizationStatus()
+    }
+    static var authorizationStatusProvider: () -> CLAuthorizationStatus = defaultAuthorizationStatusProvider
 
     private let manager = CLLocationManager()
     private var continuation: CheckedContinuation<Bool, Never>?
 
     /// Current permission status from the shared manager
     var currentStatus: Permissions.PermissionStatus {
-        switch manager.authorizationStatus {
-        case .authorizedAlways, .authorized:
+        let status = Self.authorizationStatusProvider()
+#if os(iOS) || os(tvOS) || os(watchOS)
+        let isAuthorized = status == .authorizedAlways
+            || status == .authorized
+            || status == .authorizedWhenInUse
+#else
+        let isAuthorized = status == .authorizedAlways
+            || status == .authorized
+#endif
+
+        if isAuthorized {
             return .granted
+        }
+
+        switch status {
         case .denied, .restricted:
             return .denied
         case .notDetermined:
@@ -114,12 +130,18 @@ final class LocationPermissionRequester: NSObject, CLLocationManagerDelegate {
     }
 
     func requestPermission() async -> Bool {
-        let currentStatus = manager.authorizationStatus
+        let currentStatus = Self.authorizationStatusProvider()
 
         // Already determined
+        #if os(iOS) || os(tvOS) || os(watchOS)
+        if currentStatus == .authorizedAlways || currentStatus == .authorized || currentStatus == .authorizedWhenInUse {
+            return true
+        }
+        #else
         if currentStatus == .authorizedAlways || currentStatus == .authorized {
             return true
         }
+        #endif
         if currentStatus == .denied || currentStatus == .restricted {
             return false
         }

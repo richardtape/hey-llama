@@ -38,6 +38,15 @@ final class WeatherForecastSkillTests: XCTestCase {
         XCTAssertNil(args.location)
     }
 
+    func testParseWeatherArgumentsNormalizesUserLocation() throws {
+        let args = try WeatherForecastSkill.parseArguments(from: """
+        {"when": "today", "location": "user"}
+        """)
+
+        XCTAssertEqual(args.when, .today)
+        XCTAssertNil(args.location)
+    }
+
     func testParseWeatherArgumentsNext7Days() throws {
         let args = try WeatherForecastSkill.parseArguments(from: """
         {"when": "next_7_days"}

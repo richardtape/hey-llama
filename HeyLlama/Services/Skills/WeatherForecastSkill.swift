@@ -34,7 +34,9 @@ struct WeatherForecastSkill {
         }
 
         do {
-            return try JSONDecoder().decode(Arguments.self, from: data)
+            let decoded = try JSONDecoder().decode(Arguments.self, from: data)
+            let normalizedLocation = normalizeLocation(decoded.location)
+            return Arguments(when: decoded.when, location: normalizedLocation)
         } catch {
             throw SkillError.invalidArguments("Failed to parse arguments: \(error.localizedDescription)")
         }
@@ -72,6 +74,25 @@ struct WeatherForecastSkill {
     }
 
     // MARK: - Private Helpers
+    private static func normalizeLocation(_ location: String?) -> String? {
+        guard let location = location?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !location.isEmpty else {
+            return nil
+        }
+
+        let normalized = location.lowercased()
+        let userLocationTokens: Set<String> = [
+            "user",
+            "me",
+            "my location",
+            "current location",
+            "current",
+            "here",
+            "local"
+        ]
+
+        return userLocationTokens.contains(normalized) ? nil : location
+    }
 
     private func geocodeLocation(_ name: String) async throws -> CLLocation {
         let geocoder = CLGeocoder()
