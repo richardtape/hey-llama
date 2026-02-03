@@ -207,6 +207,8 @@ actor AppleIntelligenceProvider: LLMServiceProtocol {
     }
     #endif
 
+    // MARK: - Tool Infrastructure
+
     #if canImport(FoundationModels)
     @available(macOS 26.0, iOS 26.0, *)
     private func makeTools(
@@ -214,10 +216,47 @@ actor AppleIntelligenceProvider: LLMServiceProtocol {
         includeSkills: Bool
     ) -> [any Tool] {
         guard includeSkills else { return [] }
-        return [
-            WeatherForecastTool(recorder: recorder),
-            RemindersAddItemTool(recorder: recorder)
-        ]
+
+        // Collect tools from registered skills
+        var tools: [any Tool] = []
+
+        for skillType in SkillsRegistry.allSkillTypes {
+            if let tool = makeToolForSkill(skillType, recorder: recorder) {
+                tools.append(tool)
+            }
+        }
+
+        return tools
+    }
+
+    /// Create an Apple Tool for a skill type.
+    ///
+    /// When adding a new skill, add a case here to return its tool.
+    /// The switch is necessary because Swift can't dynamically instantiate
+    /// `@Generable` types from protocol metadata.
+    ///
+    /// ## Adding a New Skill Tool
+    ///
+    /// 1. Create a new Tool struct below (e.g., `CalendarTool`)
+    /// 2. Add a case in this switch to return it
+    /// 3. The tool's Arguments must have `@Generable` for guided generation
+    @available(macOS 26.0, iOS 26.0, *)
+    private func makeToolForSkill(
+        _ skillType: any Skill.Type,
+        recorder: ToolInvocationRecorder
+    ) -> (any Tool)? {
+        switch skillType {
+        case is WeatherForecastSkill.Type:
+            return WeatherForecastTool(recorder: recorder)
+        case is RemindersAddItemSkill.Type:
+            return RemindersAddItemTool(recorder: recorder)
+        // Future skills:
+        // case is CalendarSkill.Type:
+        //     return CalendarTool(recorder: recorder)
+        default:
+            print("Warning: No Apple Tool registered for skill: \(skillType.id)")
+            return nil
+        }
     }
 
     @available(macOS 26.0, iOS 26.0, *)
@@ -235,10 +274,16 @@ actor AppleIntelligenceProvider: LLMServiceProtocol {
         }
     }
 
+    // MARK: - Skill Tools
+
+    /// Weather forecast tool for Apple's Foundation Models.
+    ///
+    /// Uses metadata from `WeatherForecastSkill` and `@Generable` Arguments
+    /// for guided generation.
     @available(macOS 26.0, iOS 26.0, *)
     struct WeatherForecastTool: Tool {
-        let name: String = RegisteredSkill.weatherForecast.id
-        let description: String = RegisteredSkill.weatherForecast.skillDescription
+        let name: String = WeatherForecastSkill.id
+        let description: String = WeatherForecastSkill.skillDescription
         let recorder: ToolInvocationRecorder
 
         @Generable
@@ -261,10 +306,14 @@ actor AppleIntelligenceProvider: LLMServiceProtocol {
         }
     }
 
+    /// Reminders add item tool for Apple's Foundation Models.
+    ///
+    /// Uses metadata from `RemindersAddItemSkill` and `@Generable` Arguments
+    /// for guided generation.
     @available(macOS 26.0, iOS 26.0, *)
     struct RemindersAddItemTool: Tool {
-        let name: String = RegisteredSkill.remindersAddItem.id
-        let description: String = RegisteredSkill.remindersAddItem.skillDescription
+        let name: String = RemindersAddItemSkill.id
+        let description: String = RemindersAddItemSkill.skillDescription
         let recorder: ToolInvocationRecorder
 
         @Generable

@@ -1,54 +1,85 @@
 import Foundation
 import WeatherKit
 import CoreLocation
+#if canImport(FoundationModels)
+import FoundationModels
+#endif
 
-/// Weather forecast skill using WeatherKit
-struct WeatherForecastSkill {
+// MARK: - Arguments
 
-    // MARK: - Argument Types
+/// Arguments for the weather forecast skill.
+///
+/// IMPORTANT: When modifying this struct, you MUST update `argumentsJSONSchema`
+/// to match. Run `WeatherForecastSkillTests.testArgumentsMatchJSONSchema` to verify.
+struct WeatherForecastArguments: Codable {
+    /// Time period for the forecast: "today", "tomorrow", or "next_7_days"
+    let when: String
 
-    enum TimePeriod: String, Codable, CustomStringConvertible {
-        case today
-        case tomorrow
-        case next7Days = "next_7_days"
+    /// Geographic location name (city, region, address).
+    /// Omit to use the user's GPS location.
+    let location: String?
+}
 
-        var description: String {
-            switch self {
-            case .today: return "today"
-            case .tomorrow: return "tomorrow"
-            case .next7Days: return "next 7 days"
-            }
+// MARK: - Skill Definition
+
+/// Weather forecast skill using WeatherKit.
+///
+/// Provides current conditions and forecasts for today, tomorrow, or 7 days.
+/// Uses GPS location by default, or a specified location name.
+struct WeatherForecastSkill: Skill {
+
+    // MARK: - Skill Metadata
+
+    static let id = "weather.forecast"
+    static let name = "Weather Forecast"
+    static let skillDescription = "Get the weather forecast for today, tomorrow, or the next 7 days"
+    static let requiredPermissions: [SkillPermission] = [.location]
+    static let includesInResponseAgent = true
+
+    // MARK: - Arguments Type Alias
+
+    typealias Arguments = WeatherForecastArguments
+
+    // MARK: - JSON Schema
+
+    /// JSON Schema for OpenAI-compatible providers.
+    ///
+    /// IMPORTANT: This schema MUST match the `Arguments` struct above.
+    /// - Property names must be identical
+    /// - Types must match (String -> "string", Int -> "integer", etc.)
+    /// - Required fields must be non-optional in the struct
+    /// - Optional fields must be optional (?) in the struct
+    ///
+    /// NOTE: The location description is intentionally detailed to prevent LLMs from
+    /// passing the speaker's name as a location. Without this guidance, LLMs often
+    /// interpret "my weather" as meaning the speaker's name rather than GPS location.
+    static let argumentsJSONSchema = """
+        {
+            "type": "object",
+            "properties": {
+                "when": {
+                    "type": "string",
+                    "enum": ["today", "tomorrow", "next_7_days"],
+                    "description": "The time period for the forecast"
+                },
+                "location": {
+                    "type": "string",
+                    "description": "A geographic place name (city, region, or address) like 'New York', 'London', or 'Tokyo'. ONLY include this if the user explicitly names a place. Do NOT pass the user's name here. Omit this parameter entirely when the user says 'my weather' or doesn't specify a location - their GPS location will be used automatically."
+                }
+            },
+            "required": ["when"]
         }
-    }
-
-    struct Arguments: Codable {
-        let when: TimePeriod
-        let location: String?
-    }
-
-    // MARK: - Argument Parsing
-
-    static func parseArguments(from json: String) throws -> Arguments {
-        guard let data = json.data(using: .utf8) else {
-            throw SkillError.invalidArguments("Invalid JSON encoding")
-        }
-
-        do {
-            return try JSONDecoder().decode(Arguments.self, from: data)
-        } catch {
-            throw SkillError.invalidArguments("Failed to parse arguments: \(error.localizedDescription)")
-        }
-    }
+        """
 
     // MARK: - Execution
 
-    func run(argumentsJSON: String, context: SkillContext) async throws -> SkillResult {
-        let args = try Self.parseArguments(from: argumentsJSON)
+    func execute(arguments: Arguments, context: SkillContext) async throws -> SkillResult {
+        // Parse the time period
+        let period = parseTimePeriod(arguments.when)
 
         // Normalize location, filtering out speaker name if LLM incorrectly passed it
-        // (e.g., user says "my weather" and LLM interprets as location: "Rich")
         let normalizedLocation = LocationHelpers.normalizeLocationToken(
-            args.location,
+            arguments.location,
             speakerName: context.speaker?.name
         )
 
@@ -64,15 +95,15 @@ struct WeatherForecastSkill {
         let weatherService = WeatherService.shared
         let weather = try await weatherService.weather(for: location)
 
-        // Format response based on time period
+        // Format response
         let responseText = formatWeatherResponse(
             weather: weather,
-            period: args.when,
+            period: period,
             locationName: normalizedLocation
         )
 
         let summary = SkillSummary(
-            skillId: "weather.forecast",
+            skillId: Self.id,
             status: .success,
             summary: responseText,
             details: [
@@ -89,18 +120,47 @@ struct WeatherForecastSkill {
         ], summary: summary)
     }
 
+    // MARK: - Legacy API Support
+
+    /// Run with JSON arguments string (for backward compatibility with RegisteredSkill)
+    func run(argumentsJSON: String, context: SkillContext) async throws -> SkillResult {
+        guard let data = argumentsJSON.data(using: .utf8) else {
+            throw SkillError.invalidArguments("Invalid JSON encoding")
+        }
+
+        do {
+            let args = try JSONDecoder().decode(Arguments.self, from: data)
+            return try await execute(arguments: args, context: context)
+        } catch let error as SkillError {
+            throw error
+        } catch {
+            throw SkillError.invalidArguments("Failed to parse arguments: \(error.localizedDescription)")
+        }
+    }
+
     // MARK: - Private Helpers
 
-    /// Format temperature to nearest half degree (e.g., 12.5°C)
+    private enum TimePeriod {
+        case today
+        case tomorrow
+        case next7Days
+    }
+
+    private func parseTimePeriod(_ value: String) -> TimePeriod {
+        switch value.lowercased() {
+        case "tomorrow": return .tomorrow
+        case "next_7_days", "next7days", "week": return .next7Days
+        default: return .today
+        }
+    }
+
     private func formatTemperature(_ measurement: Measurement<UnitTemperature>) -> String {
         let value = measurement.value
-        let rounded = (value * 2).rounded() / 2  // Round to nearest 0.5
+        let rounded = (value * 2).rounded() / 2
         let unit = measurement.unit.symbol
         if rounded == rounded.rounded() {
-            // Whole number, no decimal
             return "\(Int(rounded))\(unit)"
         } else {
-            // Half degree
             return String(format: "%.1f%@", rounded, unit)
         }
     }
@@ -119,7 +179,6 @@ struct WeatherForecastSkill {
             let condition = current.condition.description
             let high = weather.dailyForecast.first.map { formatTemperature($0.highTemperature) } ?? "N/A"
             let low = weather.dailyForecast.first.map { formatTemperature($0.lowTemperature) } ?? "N/A"
-
             return "The weather in \(locationStr) today is \(condition) with a current temperature of \(temp). Expected high of \(high) and low of \(low)."
 
         case .tomorrow:
@@ -130,7 +189,6 @@ struct WeatherForecastSkill {
             let condition = tomorrow.condition.description
             let high = formatTemperature(tomorrow.highTemperature)
             let low = formatTemperature(tomorrow.lowTemperature)
-
             return "Tomorrow in \(locationStr) will be \(condition) with a high of \(high) and low of \(low)."
 
         case .next7Days:
@@ -143,9 +201,8 @@ struct WeatherForecastSkill {
                 let condition = day.condition.description
                 let high = formatTemperature(day.highTemperature)
                 let low = formatTemperature(day.lowTemperature)
-                forecast += "• \(dayName): \(condition), \(high)/\(low)\n"
+                forecast += "- \(dayName): \(condition), \(high)/\(low)\n"
             }
-
             return forecast
         }
     }

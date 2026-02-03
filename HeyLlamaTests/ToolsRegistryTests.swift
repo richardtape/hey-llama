@@ -27,17 +27,17 @@ final class ToolsRegistryTests: XCTestCase {
         XCTAssertEqual(decoded.enabledSkillIds, config.enabledSkillIds)
     }
 
-    // MARK: - RegisteredSkill Tests
+    // MARK: - Skill Type Tests
 
-    func testRegisteredSkillEnum() {
-        let weather = RegisteredSkill.weatherForecast
+    func testSkillTypes() {
+        let weather = WeatherForecastSkill.self
         XCTAssertEqual(weather.id, "weather.forecast")
         XCTAssertEqual(weather.name, "Weather Forecast")
         XCTAssertFalse(weather.skillDescription.isEmpty)
         XCTAssertEqual(weather.requiredPermissions, [.location])
-        XCTAssertFalse(weather.argumentSchemaJSON.isEmpty)
+        XCTAssertFalse(weather.argumentsJSONSchema.isEmpty)
 
-        let reminders = RegisteredSkill.remindersAddItem
+        let reminders = RemindersAddItemSkill.self
         XCTAssertEqual(reminders.id, "reminders.add_item")
         XCTAssertEqual(reminders.name, "Add Reminder")
         XCTAssertEqual(reminders.requiredPermissions, [.reminders])

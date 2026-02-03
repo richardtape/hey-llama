@@ -302,4 +302,48 @@ final class LLMActionPlanTests: XCTestCase {
 
         XCTAssertEqual(text, "Hello from JSON")
     }
+
+    // MARK: - Direct Construction Tests (for Apple provider)
+
+    func testFromToolInvocationsWithCalls() {
+        let calls = [
+            SkillCall(skillId: "weather.forecast", arguments: ["when": "today"])
+        ]
+
+        let plan = LLMActionPlan.from(responseText: "", toolInvocations: calls)
+
+        if case .callSkills(let resultCalls) = plan {
+            XCTAssertEqual(resultCalls.count, 1)
+            XCTAssertEqual(resultCalls[0].skillId, "weather.forecast")
+        } else {
+            XCTFail("Expected callSkills")
+        }
+    }
+
+    func testFromToolInvocationsWithoutCalls() {
+        let plan = LLMActionPlan.from(responseText: "Hello!", toolInvocations: [])
+
+        if case .respond(let text) = plan {
+            XCTAssertEqual(text, "Hello!")
+        } else {
+            XCTFail("Expected respond")
+        }
+    }
+
+    func testFromToolInvocationsWithMultipleCalls() {
+        let calls = [
+            SkillCall(skillId: "weather.forecast", arguments: ["when": "today"]),
+            SkillCall(skillId: "reminders.add_item", arguments: ["listName": "Groceries", "itemName": "Milk"])
+        ]
+
+        let plan = LLMActionPlan.from(responseText: "ignored", toolInvocations: calls)
+
+        if case .callSkills(let resultCalls) = plan {
+            XCTAssertEqual(resultCalls.count, 2)
+            XCTAssertEqual(resultCalls[0].skillId, "weather.forecast")
+            XCTAssertEqual(resultCalls[1].skillId, "reminders.add_item")
+        } else {
+            XCTFail("Expected callSkills")
+        }
+    }
 }

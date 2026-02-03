@@ -27,13 +27,13 @@ final class SkillPermissionManagerTests: XCTestCase {
         XCTAssertTrue(allGranted, "Empty permissions array should return true")
     }
 
-    func testHasAllPermissionsForSkill() async {
+    func testHasAllPermissionsForSkillType() async {
         let manager = SkillPermissionManager()
-        let skill = RegisteredSkill.remindersAddItem
+        let skillType = RemindersAddItemSkill.self
 
         // Check current status - we can't know for sure what it is,
         // but we can verify the method works
-        let hasAll = await manager.hasAllPermissions(for: skill)
+        let hasAll = await manager.hasAllPermissions(forSkillType: skillType)
         let status = await manager.checkPermissionStatus(.reminders)
 
         if status == .granted {
@@ -43,11 +43,11 @@ final class SkillPermissionManagerTests: XCTestCase {
         }
     }
 
-    func testMissingPermissions() async {
+    func testMissingPermissionsForSkillType() async {
         let manager = SkillPermissionManager()
-        let skill = RegisteredSkill.weatherForecast
+        let skillType = WeatherForecastSkill.self
 
-        let missing = await manager.missingPermissions(for: skill)
+        let missing = await manager.missingPermissions(forSkillType: skillType)
 
         // Location permission is likely not granted in test environment
         let status = await manager.checkPermissionStatus(.location)

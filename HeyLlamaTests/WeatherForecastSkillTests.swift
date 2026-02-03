@@ -3,88 +3,76 @@ import XCTest
 
 final class WeatherForecastSkillTests: XCTestCase {
 
+    // MARK: - Metadata Tests
+
     func testSkillHasCorrectId() {
-        let skill = RegisteredSkill.weatherForecast
-        XCTAssertEqual(skill.id, "weather.forecast")
+        XCTAssertEqual(WeatherForecastSkill.id, "weather.forecast")
+    }
+
+    func testSkillHasCorrectName() {
+        XCTAssertEqual(WeatherForecastSkill.name, "Weather Forecast")
     }
 
     func testSkillRequiresLocationPermission() {
-        let skill = RegisteredSkill.weatherForecast
-        XCTAssertTrue(skill.requiredPermissions.contains(.location))
+        XCTAssertTrue(WeatherForecastSkill.requiredPermissions.contains(.location))
     }
 
-    func testArgumentSchemaIsValidJSON() {
-        let skill = RegisteredSkill.weatherForecast
-        let schemaData = skill.argumentSchemaJSON.data(using: .utf8)!
-
-        XCTAssertNoThrow(try JSONSerialization.jsonObject(with: schemaData))
+    func testSkillIncludesInResponseAgent() {
+        XCTAssertTrue(WeatherForecastSkill.includesInResponseAgent)
     }
 
-    func testParseWeatherArguments() throws {
-        let args = try WeatherForecastSkill.parseArguments(from: """
-        {"when": "today", "location": "San Francisco"}
-        """)
+    // MARK: - Schema Validation Tests
 
-        XCTAssertEqual(args.when, .today)
+    func testArgumentsJSONSchemaIsValidJSON() {
+        let data = WeatherForecastSkill.argumentsJSONSchema.data(using: .utf8)!
+        XCTAssertNoThrow(try JSONSerialization.jsonObject(with: data))
+    }
+
+    func testArgumentsMatchJSONSchema() throws {
+        try SkillSchemaValidator.validate(
+            structType: WeatherForecastArguments.self,
+            jsonSchema: WeatherForecastSkill.argumentsJSONSchema
+        )
+    }
+
+    // MARK: - Argument Decoding Tests
+
+    func testCanDecodeArgumentsFromJSON() throws {
+        let json = """
+            {"when": "today", "location": "San Francisco"}
+            """
+        let data = json.data(using: .utf8)!
+        let args = try JSONDecoder().decode(WeatherForecastArguments.self, from: data)
+
+        XCTAssertEqual(args.when, "today")
         XCTAssertEqual(args.location, "San Francisco")
     }
 
-    func testParseWeatherArgumentsWithoutLocation() throws {
-        let args = try WeatherForecastSkill.parseArguments(from: """
-        {"when": "tomorrow"}
-        """)
+    func testCanDecodeArgumentsWithoutLocation() throws {
+        let json = """
+            {"when": "tomorrow"}
+            """
+        let data = json.data(using: .utf8)!
+        let args = try JSONDecoder().decode(WeatherForecastArguments.self, from: data)
 
-        XCTAssertEqual(args.when, .tomorrow)
+        XCTAssertEqual(args.when, "tomorrow")
         XCTAssertNil(args.location)
     }
+
+    func testCanDecodeNext7DaysArguments() throws {
+        let json = """
+            {"when": "next_7_days"}
+            """
+        let data = json.data(using: .utf8)!
+        let args = try JSONDecoder().decode(WeatherForecastArguments.self, from: data)
+
+        XCTAssertEqual(args.when, "next_7_days")
+    }
+
+    // MARK: - Location Normalization Tests
 
     func testNormalizeLocationTokenReturnsNilForUserLocation() {
         XCTAssertNil(LocationHelpers.normalizeLocationToken("user"))
     }
 
-    func testParseWeatherArgumentsNext7Days() throws {
-        let args = try WeatherForecastSkill.parseArguments(from: """
-        {"when": "next_7_days"}
-        """)
-
-        XCTAssertEqual(args.when, .next7Days)
-        XCTAssertNil(args.location)
-    }
-
-    func testParseWeatherArgumentsInvalidWhen() {
-        XCTAssertThrowsError(try WeatherForecastSkill.parseArguments(from: """
-        {"when": "invalid"}
-        """)) { error in
-            guard case SkillError.invalidArguments = error else {
-                XCTFail("Expected invalidArguments error, got \(error)")
-                return
-            }
-        }
-    }
-
-    func testParseWeatherArgumentsMissingWhen() {
-        XCTAssertThrowsError(try WeatherForecastSkill.parseArguments(from: """
-        {"location": "Paris"}
-        """)) { error in
-            guard case SkillError.invalidArguments = error else {
-                XCTFail("Expected invalidArguments error, got \(error)")
-                return
-            }
-        }
-    }
-
-    func testParseWeatherArgumentsInvalidJSON() {
-        XCTAssertThrowsError(try WeatherForecastSkill.parseArguments(from: "not json")) { error in
-            guard case SkillError.invalidArguments = error else {
-                XCTFail("Expected invalidArguments error, got \(error)")
-                return
-            }
-        }
-    }
-
-    func testTimePeriodDescription() {
-        XCTAssertEqual(WeatherForecastSkill.TimePeriod.today.description, "today")
-        XCTAssertEqual(WeatherForecastSkill.TimePeriod.tomorrow.description, "tomorrow")
-        XCTAssertEqual(WeatherForecastSkill.TimePeriod.next7Days.description, "next 7 days")
-    }
 }

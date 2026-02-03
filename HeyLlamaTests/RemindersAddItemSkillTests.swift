@@ -3,27 +3,46 @@ import XCTest
 
 final class RemindersAddItemSkillTests: XCTestCase {
 
+    // MARK: - Metadata Tests
+
     func testSkillHasCorrectId() {
-        let skill = RegisteredSkill.remindersAddItem
-        XCTAssertEqual(skill.id, "reminders.add_item")
+        XCTAssertEqual(RemindersAddItemSkill.id, "reminders.add_item")
+    }
+
+    func testSkillHasCorrectName() {
+        XCTAssertEqual(RemindersAddItemSkill.name, "Add Reminder")
     }
 
     func testSkillRequiresRemindersPermission() {
-        let skill = RegisteredSkill.remindersAddItem
-        XCTAssertTrue(skill.requiredPermissions.contains(.reminders))
+        XCTAssertTrue(RemindersAddItemSkill.requiredPermissions.contains(.reminders))
     }
 
-    func testArgumentSchemaIsValidJSON() {
-        let skill = RegisteredSkill.remindersAddItem
-        let schemaData = skill.argumentSchemaJSON.data(using: .utf8)!
-
-        XCTAssertNoThrow(try JSONSerialization.jsonObject(with: schemaData))
+    func testSkillIncludesInResponseAgent() {
+        XCTAssertTrue(RemindersAddItemSkill.includesInResponseAgent)
     }
 
-    func testParseRemindersArguments() throws {
-        let args = try RemindersAddItemSkill.parseArguments(from: """
-        {"listName": "Groceries", "itemName": "Milk"}
-        """)
+    // MARK: - Schema Validation Tests
+
+    func testArgumentsJSONSchemaIsValidJSON() {
+        let data = RemindersAddItemSkill.argumentsJSONSchema.data(using: .utf8)!
+        XCTAssertNoThrow(try JSONSerialization.jsonObject(with: data))
+    }
+
+    func testArgumentsMatchJSONSchema() throws {
+        try SkillSchemaValidator.validate(
+            structType: RemindersAddItemArguments.self,
+            jsonSchema: RemindersAddItemSkill.argumentsJSONSchema
+        )
+    }
+
+    // MARK: - Argument Decoding Tests
+
+    func testCanDecodeArgumentsFromJSON() throws {
+        let json = """
+            {"listName": "Groceries", "itemName": "Milk"}
+            """
+        let data = json.data(using: .utf8)!
+        let args = try JSONDecoder().decode(RemindersAddItemArguments.self, from: data)
 
         XCTAssertEqual(args.listName, "Groceries")
         XCTAssertEqual(args.itemName, "Milk")
@@ -31,15 +50,17 @@ final class RemindersAddItemSkillTests: XCTestCase {
         XCTAssertNil(args.dueDateISO8601)
     }
 
-    func testParseRemindersArgumentsWithOptionalFields() throws {
-        let args = try RemindersAddItemSkill.parseArguments(from: """
-        {
-            "listName": "Shopping",
-            "itemName": "Bread",
-            "notes": "Whole wheat",
-            "dueDateISO8601": "2026-02-03T10:00:00Z"
-        }
-        """)
+    func testCanDecodeArgumentsWithOptionalFields() throws {
+        let json = """
+            {
+                "listName": "Shopping",
+                "itemName": "Bread",
+                "notes": "Whole wheat",
+                "dueDateISO8601": "2026-02-03T10:00:00Z"
+            }
+            """
+        let data = json.data(using: .utf8)!
+        let args = try JSONDecoder().decode(RemindersAddItemArguments.self, from: data)
 
         XCTAssertEqual(args.listName, "Shopping")
         XCTAssertEqual(args.itemName, "Bread")
@@ -47,36 +68,7 @@ final class RemindersAddItemSkillTests: XCTestCase {
         XCTAssertEqual(args.dueDateISO8601, "2026-02-03T10:00:00Z")
     }
 
-    func testParseRemindersArgumentsMissingListName() {
-        XCTAssertThrowsError(try RemindersAddItemSkill.parseArguments(from: """
-        {"itemName": "Milk"}
-        """)) { error in
-            guard case SkillError.invalidArguments = error else {
-                XCTFail("Expected invalidArguments error, got \(error)")
-                return
-            }
-        }
-    }
-
-    func testParseRemindersArgumentsMissingItemName() {
-        XCTAssertThrowsError(try RemindersAddItemSkill.parseArguments(from: """
-        {"listName": "Groceries"}
-        """)) { error in
-            guard case SkillError.invalidArguments = error else {
-                XCTFail("Expected invalidArguments error, got \(error)")
-                return
-            }
-        }
-    }
-
-    func testParseRemindersArgumentsInvalidJSON() {
-        XCTAssertThrowsError(try RemindersAddItemSkill.parseArguments(from: "not json")) { error in
-            guard case SkillError.invalidArguments = error else {
-                XCTFail("Expected invalidArguments error, got \(error)")
-                return
-            }
-        }
-    }
+    // MARK: - Helper Tests
 
     func testParseDueDateFromISO8601() {
         let dateString = "2026-02-03T10:00:00Z"
@@ -92,4 +84,5 @@ final class RemindersAddItemSkillTests: XCTestCase {
         XCTAssertEqual(components.month, 2)
         XCTAssertEqual(components.day, 3)
     }
+
 }

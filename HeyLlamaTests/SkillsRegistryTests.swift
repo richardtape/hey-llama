@@ -3,29 +3,56 @@ import XCTest
 
 final class SkillsRegistryTests: XCTestCase {
 
-    func testRegistryHasBuiltInSkills() {
-        let registry = SkillsRegistry()
-        let allSkills = registry.allSkills
-        XCTAssertEqual(allSkills.count, 2)
+    // MARK: - New Skill Type API Tests
+
+    func testRegistryHasAllSkillTypes() {
+        XCTAssertEqual(SkillsRegistry.allSkillTypes.count, 2)
     }
 
-    func testGetSkillById() {
-        let registry = SkillsRegistry()
-        let skill = registry.skill(withId: "weather.forecast")
-        XCTAssertNotNil(skill)
-        XCTAssertEqual(skill?.id, "weather.forecast")
+    func testGetSkillTypeById() {
+        let skillType = SkillsRegistry.skillType(withId: "weather.forecast")
+        XCTAssertNotNil(skillType)
+        XCTAssertEqual(skillType?.id, "weather.forecast")
     }
 
-    func testGetNonexistentSkill() {
-        let registry = SkillsRegistry()
-        let skill = registry.skill(withId: "nonexistent.skill")
-        XCTAssertNil(skill)
+    func testGetNonexistentSkillType() {
+        let skillType = SkillsRegistry.skillType(withId: "nonexistent.skill")
+        XCTAssertNil(skillType)
     }
 
-    func testSkillsDisabledByDefault() {
+    func testSkillTypesDisabledByDefault() {
         let registry = SkillsRegistry()
-        XCTAssertTrue(registry.enabledSkills.isEmpty)
+        XCTAssertTrue(registry.enabledSkillTypes.isEmpty)
     }
+
+    func testEnabledSkillTypes() {
+        var config = SkillsConfig()
+        config.enabledSkillIds = ["weather.forecast"]
+        let registry = SkillsRegistry(config: config)
+        XCTAssertEqual(registry.enabledSkillTypes.count, 1)
+        XCTAssertEqual(registry.enabledSkillTypes.first?.id, "weather.forecast")
+    }
+
+    func testSkillTypeMetadataAccessible() {
+        let weatherType = SkillsRegistry.skillType(withId: "weather.forecast")!
+        XCTAssertEqual(weatherType.id, "weather.forecast")
+        XCTAssertEqual(weatherType.name, "Weather Forecast")
+        XCTAssertEqual(weatherType.requiredPermissions, [.location])
+        XCTAssertTrue(weatherType.includesInResponseAgent)
+    }
+
+    func testManifestIncludesJSONSchema() {
+        var config = SkillsConfig()
+        config.enabledSkillIds = ["weather.forecast"]
+        let registry = SkillsRegistry(config: config)
+
+        let manifest = registry.generateSkillsManifest()
+
+        XCTAssertTrue(manifest.contains("weather.forecast"))
+        XCTAssertTrue(manifest.contains("\"type\": \"object\""))
+    }
+
+    // MARK: - Common API Tests
 
     func testIsSkillEnabled() {
         var config = SkillsConfig()
@@ -37,12 +64,12 @@ final class SkillsRegistryTests: XCTestCase {
 
     func testUpdateConfig() {
         var registry = SkillsRegistry()
-        XCTAssertTrue(registry.enabledSkills.isEmpty)
+        XCTAssertTrue(registry.enabledSkillTypes.isEmpty)
 
         var newConfig = SkillsConfig()
         newConfig.enabledSkillIds = ["weather.forecast"]
         registry.updateConfig(newConfig)
-        XCTAssertEqual(registry.enabledSkills.count, 1)
+        XCTAssertEqual(registry.enabledSkillTypes.count, 1)
     }
 
     func testManifestWhenNoSkillsEnabled() {
@@ -64,15 +91,8 @@ final class SkillsRegistryTests: XCTestCase {
         XCTAssertEqual(decoded.enabledSkillIds, config.enabledSkillIds)
     }
 
-    func testRegisteredSkillProperties() {
-        let weather = RegisteredSkill.weatherForecast
-        XCTAssertEqual(weather.id, "weather.forecast")
-        XCTAssertEqual(weather.name, "Weather Forecast")
-        XCTAssertEqual(weather.requiredPermissions, [.location])
-    }
-
-    func testSkillsIncludeResponseAgentMetadata() {
-        XCTAssertTrue(RegisteredSkill.weatherForecast.includesInResponseAgent)
-        XCTAssertTrue(RegisteredSkill.remindersAddItem.includesInResponseAgent)
+    func testSkillTypesIncludeResponseAgentMetadata() {
+        XCTAssertTrue(WeatherForecastSkill.includesInResponseAgent)
+        XCTAssertTrue(RemindersAddItemSkill.includesInResponseAgent)
     }
 }

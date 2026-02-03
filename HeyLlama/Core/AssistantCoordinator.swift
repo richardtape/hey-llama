@@ -494,7 +494,8 @@ final class AssistantCoordinator: ObservableObject {
         var summaries: [SkillSummary] = []
 
         for call in calls {
-            guard let skill = skillsRegistry.skill(withId: call.skillId) else {
+            // Use new Skill type API
+            guard let skillType = SkillsRegistry.skillType(withId: call.skillId) else {
                 // Don't add to summaries - skill doesn't exist
                 results.append("I couldn't find the skill '\(call.skillId)'.")
                 continue
@@ -502,18 +503,18 @@ final class AssistantCoordinator: ObservableObject {
 
             guard skillsRegistry.isSkillEnabled(call.skillId) else {
                 // Don't add to summaries - skill is disabled
-                results.append("The \(skill.name) skill is currently disabled. You can enable it in Settings.")
+                results.append("The \(skillType.name) skill is currently disabled. You can enable it in Settings.")
                 continue
             }
 
-            // Check permissions
-            let missing = await permissionManager.missingPermissions(for: skill)
+            // Check permissions using new skill type API
+            let missing = await permissionManager.missingPermissions(forSkillType: skillType)
             if !missing.isEmpty {
                 let missingNames = missing.map { $0.displayName }.joined(separator: ", ")
-                let message = "The \(skill.name) skill requires \(missingNames) permission. Please grant access in System Settings."
+                let message = "The \(skillType.name) skill requires \(missingNames) permission. Please grant access in System Settings."
                 results.append(message)
                 // Add to summaries for permission errors since skill would run if permitted
-                if skill.includesInResponseAgent {
+                if skillType.includesInResponseAgent {
                     summaries.append(SkillSummary(
                         skillId: call.skillId,
                         status: .failed,
@@ -523,7 +524,7 @@ final class AssistantCoordinator: ObservableObject {
                 continue
             }
 
-            // Execute the skill
+            // Execute the skill using the registry's executeSkill method
             do {
                 let argsJSON = try call.argumentsAsJSON()
                 print("[Skill] Executing \(call.skillId) with arguments: \(argsJSON)")
@@ -532,7 +533,11 @@ final class AssistantCoordinator: ObservableObject {
                     speaker: currentSpeaker,
                     source: .localMic
                 )
-                let result = try await skill.run(argumentsJSON: argsJSON, context: context)
+                let result = try await skillsRegistry.executeSkill(
+                    skillId: call.skillId,
+                    argumentsJSON: argsJSON,
+                    context: context
+                )
                 print("[Skill] \(call.skillId) result text: \(result.text)")
                 if let data = result.data {
                     print("[Skill] \(call.skillId) result data: \(data)")
@@ -540,10 +545,10 @@ final class AssistantCoordinator: ObservableObject {
                 results.append(result.text)
 
                 // Use skill's summary if available, otherwise create one
-                if let summary = result.summary, skill.includesInResponseAgent {
+                if let summary = result.summary, skillType.includesInResponseAgent {
                     print("[Skill] \(call.skillId) summary: \(summary.summary)")
                     summaries.append(summary)
-                } else if skill.includesInResponseAgent {
+                } else if skillType.includesInResponseAgent {
                     print("[Skill] \(call.skillId) creating summary from result text")
                     summaries.append(SkillSummary(
                         skillId: call.skillId,
@@ -552,9 +557,9 @@ final class AssistantCoordinator: ObservableObject {
                     ))
                 }
             } catch let error as SkillError {
-                let message = "Error with \(skill.name): \(error.localizedDescription)"
+                let message = "Error with \(skillType.name): \(error.localizedDescription)"
                 results.append(message)
-                if skill.includesInResponseAgent {
+                if skillType.includesInResponseAgent {
                     summaries.append(SkillSummary(
                         skillId: call.skillId,
                         status: .failed,
@@ -562,9 +567,9 @@ final class AssistantCoordinator: ObservableObject {
                     ))
                 }
             } catch {
-                let message = "An error occurred while running \(skill.name)."
+                let message = "An error occurred while running \(skillType.name)."
                 results.append(message)
-                if skill.includesInResponseAgent {
+                if skillType.includesInResponseAgent {
                     summaries.append(SkillSummary(
                         skillId: call.skillId,
                         status: .failed,

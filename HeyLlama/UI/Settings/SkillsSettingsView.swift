@@ -1,5 +1,20 @@
 import SwiftUI
 
+/// A wrapper to hold skill type info for SwiftUI's ForEach
+struct SkillInfo: Identifiable {
+    let id: String
+    let name: String
+    let description: String
+    let requiredPermissions: [SkillPermission]
+
+    init(from skillType: any Skill.Type) {
+        self.id = skillType.id
+        self.name = skillType.name
+        self.description = skillType.skillDescription
+        self.requiredPermissions = skillType.requiredPermissions
+    }
+}
+
 struct SkillsSettingsView: View {
     @EnvironmentObject private var appState: AppState
     @State private var config: AssistantConfig
@@ -7,8 +22,12 @@ struct SkillsSettingsView: View {
     @State private var permissionStatuses: [SkillPermission: Permissions.PermissionStatus] = [:]
 
     private let configStore: ConfigStore
-    private let skillsRegistry = SkillsRegistry()
     private let permissionManager = SkillPermissionManager()
+
+    /// Skill info derived from the registry's skill types
+    private var skillInfos: [SkillInfo] {
+        SkillsRegistry.allSkillTypes.map { SkillInfo(from: $0) }
+    }
 
     init() {
         let store = ConfigStore()
@@ -32,8 +51,8 @@ struct SkillsSettingsView: View {
                         .font(.caption)
                 }
 
-                // Skills list
-                ForEach(skillsRegistry.allSkills, id: \.id) { skill in
+                // Skills list - now using skill types
+                ForEach(skillInfos) { skill in
                     SkillRow(
                         skill: skill,
                         isEnabled: config.skills.enabledSkillIds.contains(skill.id),
@@ -90,7 +109,7 @@ struct SkillsSettingsView: View {
 // MARK: - Skill Row
 
 struct SkillRow: View {
-    let skill: RegisteredSkill
+    let skill: SkillInfo
     let isEnabled: Bool
     let permissionStatuses: [SkillPermission: Permissions.PermissionStatus]
     let permissionManager: SkillPermissionManager
@@ -105,7 +124,7 @@ struct SkillRow: View {
                         Text(skill.name)
                             .font(.headline)
 
-                        Text(skill.skillDescription)
+                        Text(skill.description)
                             .font(.callout)
                             .foregroundColor(.secondary)
                     }

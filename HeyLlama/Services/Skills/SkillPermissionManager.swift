@@ -82,4 +82,44 @@ actor SkillPermissionManager {
 
         return true
     }
+
+    // MARK: - Skill Type API (New)
+
+    /// Check if all required permissions for a skill type are granted
+    func hasAllPermissions(forSkillType skillType: any Skill.Type) async -> Bool {
+        for permission in skillType.requiredPermissions {
+            let status = await checkPermissionStatus(permission)
+            if status != .granted {
+                return false
+            }
+        }
+        return true
+    }
+
+    /// Get list of missing permissions for a skill type
+    func missingPermissions(forSkillType skillType: any Skill.Type) async -> [SkillPermission] {
+        var missing: [SkillPermission] = []
+        for permission in skillType.requiredPermissions {
+            let status = await checkPermissionStatus(permission)
+            if status != .granted {
+                missing.append(permission)
+            }
+        }
+        return missing
+    }
+
+    /// Request all missing permissions for a skill type
+    /// Returns true if all permissions were granted
+    func requestAllMissingPermissions(forSkillType skillType: any Skill.Type) async -> Bool {
+        let missing = await missingPermissions(forSkillType: skillType)
+
+        for permission in missing {
+            let granted = await requestPermission(permission)
+            if !granted {
+                return false
+            }
+        }
+
+        return true
+    }
 }

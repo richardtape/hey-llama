@@ -103,28 +103,78 @@ enum RegisteredSkill: CaseIterable, Sendable {
     }
 }
 
-/// Central registry for all available skills
+// MARK: - Skills Registry
+
+/// Central registry for all available skills.
+///
+/// ## Adding a New Skill
+///
+/// 1. Create your skill file conforming to `Skill` protocol
+/// 2. Add the skill type to `allSkillTypes` below
+/// 3. Add a case in `AppleIntelligenceProvider.makeToolForSkill()`
+/// 4. Add tests verifying schema matches struct
+///
+/// See `docs/adding-skills.md` for detailed instructions.
 struct SkillsRegistry {
-    var enabledSkillIds: [String]
+
+    // MARK: - Registered Skills
+
+    /// All skill types registered in the system.
+    ///
+    /// To register a new skill, add its type here.
+    /// Order determines display order in settings UI.
+    static let allSkillTypes: [any Skill.Type] = [
+        WeatherForecastSkill.self,
+        RemindersAddItemSkill.self,
+        // Future skills:
+        // CalendarSkill.self,
+        // MessagesSkill.self,
+        // EmailSkill.self,
+    ]
+
+    // MARK: - Instance State
+
+    var enabledSkillIds: Set<String>
 
     init(config: SkillsConfig = SkillsConfig()) {
-        self.enabledSkillIds = config.enabledSkillIds
+        self.enabledSkillIds = Set(config.enabledSkillIds)
     }
 
-    /// All skills registered in the system
+    // MARK: - Skill Type Queries (New API)
+
+    /// All registered skill types
+    var allSkillTypes: [any Skill.Type] {
+        Self.allSkillTypes
+    }
+
+    /// Skill types that are currently enabled
+    var enabledSkillTypes: [any Skill.Type] {
+        Self.allSkillTypes.filter { enabledSkillIds.contains($0.id) }
+    }
+
+    /// Get a skill type by its ID
+    static func skillType(withId id: String) -> (any Skill.Type)? {
+        allSkillTypes.first { $0.id == id }
+    }
+
+    // MARK: - Legacy API (RegisteredSkill compatibility)
+
+    /// All skills registered in the system (legacy)
     var allSkills: [RegisteredSkill] {
         RegisteredSkill.allCases
     }
 
-    /// Skills that are currently enabled based on config
+    /// Skills that are currently enabled based on config (legacy)
     var enabledSkills: [RegisteredSkill] {
         RegisteredSkill.allCases.filter { enabledSkillIds.contains($0.id) }
     }
 
-    /// Get a skill by its ID
+    /// Get a skill by its ID (legacy)
     func skill(withId id: String) -> RegisteredSkill? {
         RegisteredSkill.allCases.first { $0.id == id }
     }
+
+    // MARK: - Common API
 
     /// Check if a skill is enabled
     func isSkillEnabled(_ skillId: String) -> Bool {
@@ -133,12 +183,16 @@ struct SkillsRegistry {
 
     /// Update the skills configuration
     mutating func updateConfig(_ newConfig: SkillsConfig) {
-        enabledSkillIds = newConfig.enabledSkillIds
+        enabledSkillIds = Set(newConfig.enabledSkillIds)
     }
 
-    /// Generate a manifest of enabled skills for LLM prompt injection
+    // MARK: - Manifest Generation
+
+    /// Generate a manifest of enabled skills for LLM prompt injection.
+    ///
+    /// For OpenAI-compatible providers, this includes the JSON schema for each skill.
     func generateSkillsManifest() -> String {
-        let enabled = enabledSkills
+        let enabled = enabledSkillTypes
 
         guard !enabled.isEmpty else {
             return "No skills are currently enabled. Respond with a helpful text message."
@@ -153,12 +207,12 @@ struct SkillsRegistry {
         manifest += "Never put tool call JSON inside the \"text\" field.\n\n"
         manifest += "Available skills:\n\n"
 
-        for skill in enabled {
+        for skillType in enabled {
             manifest += "---\n"
-            manifest += "ID: \(skill.id)\n"
-            manifest += "Name: \(skill.name)\n"
-            manifest += "Description: \(skill.skillDescription)\n"
-            manifest += "Arguments schema:\n\(skill.argumentSchemaJSON)\n\n"
+            manifest += "ID: \(skillType.id)\n"
+            manifest += "Name: \(skillType.name)\n"
+            manifest += "Description: \(skillType.skillDescription)\n"
+            manifest += "Arguments schema:\n\(skillType.argumentsJSONSchema)\n\n"
         }
 
         manifest += "---\n"
@@ -166,5 +220,45 @@ struct SkillsRegistry {
         manifest += "replies or 'call_skills' when the user's request matches an available skill.\n"
 
         return manifest
+    }
+
+    // MARK: - Skill Execution
+
+    /// Execute a skill by ID with JSON arguments.
+    ///
+    /// This is used by AssistantCoordinator to run skills from LLMActionPlan.
+    func executeSkill(
+        skillId: String,
+        argumentsJSON: String,
+        context: SkillContext
+    ) async throws -> SkillResult {
+        guard let skillType = Self.skillType(withId: skillId) else {
+            throw SkillError.skillNotFound(skillId)
+        }
+
+        guard isSkillEnabled(skillId) else {
+            throw SkillError.skillDisabled(skillId)
+        }
+
+        // Execute using the skill type - must switch on known types
+        // because we can't dynamically instantiate associated types
+        switch skillType {
+        case is WeatherForecastSkill.Type:
+            let args = try JSONDecoder().decode(
+                WeatherForecastArguments.self,
+                from: argumentsJSON.data(using: .utf8)!
+            )
+            return try await WeatherForecastSkill().execute(arguments: args, context: context)
+
+        case is RemindersAddItemSkill.Type:
+            let args = try JSONDecoder().decode(
+                RemindersAddItemArguments.self,
+                from: argumentsJSON.data(using: .utf8)!
+            )
+            return try await RemindersAddItemSkill().execute(arguments: args, context: context)
+
+        default:
+            throw SkillError.skillNotFound(skillId)
+        }
     }
 }

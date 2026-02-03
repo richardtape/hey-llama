@@ -56,14 +56,57 @@ final class SkillProtocolTests: XCTestCase {
         XCTAssertTrue(disabledError.localizedDescription.contains("disabled"))
     }
 
-    // Test the RegisteredSkill enum properties instead of protocol
-    func testRegisteredSkillHasRequiredProperties() {
-        let skill = RegisteredSkill.weatherForecast
+    // Test that Skill types have the required properties
+    func testSkillTypeHasRequiredProperties() {
+        let skillType = WeatherForecastSkill.self
 
-        XCTAssertEqual(skill.id, "weather.forecast")
-        XCTAssertEqual(skill.name, "Weather Forecast")
-        XCTAssertFalse(skill.skillDescription.isEmpty)
-        XCTAssertEqual(skill.requiredPermissions, [.location])
-        XCTAssertFalse(skill.argumentSchemaJSON.isEmpty)
+        XCTAssertEqual(skillType.id, "weather.forecast")
+        XCTAssertEqual(skillType.name, "Weather Forecast")
+        XCTAssertFalse(skillType.skillDescription.isEmpty)
+        XCTAssertEqual(skillType.requiredPermissions, [.location])
+        XCTAssertFalse(skillType.argumentsJSONSchema.isEmpty)
+    }
+}
+
+// MARK: - Skill Protocol Conformance Tests
+
+final class SkillProtocolConformanceTests: XCTestCase {
+
+    struct MockSkill: Skill {
+        static let id = "test.mock"
+        static let name = "Mock Skill"
+        static let skillDescription = "A mock skill for testing"
+        static let requiredPermissions: [SkillPermission] = []
+        static let includesInResponseAgent = true
+        static let argumentsJSONSchema = """
+            {"type": "object", "properties": {"input": {"type": "string"}}, "required": ["input"]}
+            """
+
+        struct Arguments: Codable {
+            let input: String
+        }
+
+        func execute(arguments: Arguments, context: SkillContext) async throws -> SkillResult {
+            return SkillResult(text: "Received: \(arguments.input)")
+        }
+    }
+
+    func testMockSkillConformsToProtocol() {
+        XCTAssertEqual(MockSkill.id, "test.mock")
+        XCTAssertEqual(MockSkill.name, "Mock Skill")
+        XCTAssertEqual(MockSkill.skillDescription, "A mock skill for testing")
+        XCTAssertEqual(MockSkill.requiredPermissions, [])
+        XCTAssertTrue(MockSkill.includesInResponseAgent)
+        XCTAssertFalse(MockSkill.argumentsJSONSchema.isEmpty)
+    }
+
+    func testMockSkillCanExecute() async throws {
+        let skill = MockSkill()
+        let args = MockSkill.Arguments(input: "hello")
+        let context = SkillContext()
+
+        let result = try await skill.execute(arguments: args, context: context)
+
+        XCTAssertEqual(result.text, "Received: hello")
     }
 }

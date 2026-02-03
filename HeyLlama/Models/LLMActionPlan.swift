@@ -51,6 +51,29 @@ enum LLMActionPlan: Sendable {
     /// LLM wants to call one or more skills
     case callSkills(calls: [SkillCall])
 
+    // MARK: - Construction from Apple (direct)
+
+    /// Construct an action plan directly from tool invocations (for Apple provider).
+    ///
+    /// This avoids unnecessary JSON serialization when using Apple Intelligence,
+    /// since the Tool's Arguments are already typed Swift values.
+    ///
+    /// - Parameters:
+    ///   - responseText: The text response from the model (used if no tools called)
+    ///   - toolInvocations: Skill calls recorded during tool execution
+    /// - Returns: An action plan - either `.callSkills` if tools were invoked, or `.respond` otherwise
+    static func from(
+        responseText: String,
+        toolInvocations: [SkillCall]
+    ) -> LLMActionPlan {
+        if toolInvocations.isEmpty {
+            return .respond(text: responseText)
+        }
+        return .callSkills(calls: toolInvocations)
+    }
+
+    // MARK: - Construction from OpenAI (JSON parsing)
+
     /// Parse an action plan from JSON string
     static func parse(from jsonString: String) throws -> LLMActionPlan {
         // Strip markdown code fences if present (LLMs often wrap JSON in ```json ... ```)
