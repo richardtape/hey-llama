@@ -70,4 +70,9 @@ final class SkillsRegistryTests: XCTestCase {
         XCTAssertEqual(weather.name, "Weather Forecast")
         XCTAssertEqual(weather.requiredPermissions, [.location])
     }
+
+    func testSkillsIncludeResponseAgentMetadata() {
+        XCTAssertTrue(RegisteredSkill.weatherForecast.includesInResponseAgent)
+        XCTAssertTrue(RegisteredSkill.remindersAddItem.includesInResponseAgent)
+    }
 }

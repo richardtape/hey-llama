@@ -35,6 +35,13 @@ enum RegisteredSkill: CaseIterable, Sendable {
         }
     }
 
+    var includesInResponseAgent: Bool {
+        switch self {
+        case .weatherForecast: return true
+        case .remindersAddItem: return true
+        }
+    }
+
     var argumentSchemaJSON: String {
         switch self {
         case .weatherForecast:
