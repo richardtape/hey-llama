@@ -25,12 +25,10 @@ actor LLMService: LLMServiceProtocol {
     init(config: LLMConfig) {
         self.config = config
         self.appleIntelligenceProvider = AppleIntelligenceProvider(
-            config: config.appleIntelligence,
-            systemPromptTemplate: config.systemPrompt
+            config: config.appleIntelligence
         )
         self.openAICompatibleProvider = OpenAICompatibleProvider(
-            config: config.openAICompatible,
-            systemPromptTemplate: config.systemPrompt
+            config: config.openAICompatible
         )
     }
 
@@ -38,7 +36,8 @@ actor LLMService: LLMServiceProtocol {
         prompt: String,
         context: CommandContext?,
         conversationHistory: [ConversationTurn],
-        skillsManifest: String?
+        skillsManifest: String?,
+        systemPrompt: String?
     ) async throws -> String {
         switch config.provider {
         case .appleIntelligence:
@@ -46,14 +45,16 @@ actor LLMService: LLMServiceProtocol {
                 prompt: prompt,
                 context: context,
                 conversationHistory: conversationHistory,
-                skillsManifest: skillsManifest
+                skillsManifest: skillsManifest,
+                systemPrompt: systemPrompt
             )
         case .openAICompatible:
             return try await openAICompatibleProvider.complete(
                 prompt: prompt,
                 context: context,
                 conversationHistory: conversationHistory,
-                skillsManifest: skillsManifest
+                skillsManifest: skillsManifest,
+                systemPrompt: systemPrompt
             )
         }
     }

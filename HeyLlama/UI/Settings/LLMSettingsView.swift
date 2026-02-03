@@ -255,8 +255,7 @@ struct LLMSettingsView: View {
 
                 if config.llm.provider == .appleIntelligence {
                     let provider = AppleIntelligenceProvider(
-                        config: config.llm.appleIntelligence,
-                        systemPromptTemplate: config.llm.systemPrompt
+                        config: config.llm.appleIntelligence
                     )
 
                     response = try await provider.complete(
@@ -266,8 +265,7 @@ struct LLMSettingsView: View {
                     )
                 } else {
                     let provider = OpenAICompatibleProvider(
-                        config: config.llm.openAICompatible,
-                        systemPromptTemplate: config.llm.systemPrompt
+                        config: config.llm.openAICompatible
                     )
 
                     response = try await provider.complete(

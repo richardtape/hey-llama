@@ -526,17 +526,25 @@ final class AssistantCoordinator: ObservableObject {
             // Execute the skill
             do {
                 let argsJSON = try call.argumentsAsJSON()
+                print("[Skill] Executing \(call.skillId) with arguments: \(argsJSON)")
+
                 let context = SkillContext(
                     speaker: currentSpeaker,
                     source: .localMic
                 )
                 let result = try await skill.run(argumentsJSON: argsJSON, context: context)
+                print("[Skill] \(call.skillId) result text: \(result.text)")
+                if let data = result.data {
+                    print("[Skill] \(call.skillId) result data: \(data)")
+                }
                 results.append(result.text)
 
                 // Use skill's summary if available, otherwise create one
                 if let summary = result.summary, skill.includesInResponseAgent {
+                    print("[Skill] \(call.skillId) summary: \(summary.summary)")
                     summaries.append(summary)
                 } else if skill.includesInResponseAgent {
+                    print("[Skill] \(call.skillId) creating summary from result text")
                     summaries.append(SkillSummary(
                         skillId: call.skillId,
                         status: .success,
@@ -568,6 +576,11 @@ final class AssistantCoordinator: ObservableObject {
 
         // If we have summaries and a user request, use ResponseAgent
         if !summaries.isEmpty {
+            print("[ResponseAgent] Invoking with \(summaries.count) summaries:")
+            for summary in summaries {
+                print("[ResponseAgent]   - \(summary.skillId): \(summary.status) - \(summary.summary.prefix(100))...")
+            }
+
             do {
                 let speakerName = currentSpeaker?.name
                 let response = try await ResponseAgent.generateResponse(

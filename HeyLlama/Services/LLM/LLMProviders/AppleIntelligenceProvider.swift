@@ -3,13 +3,19 @@ import Foundation
 import FoundationModels
 #endif
 
+/// Default system prompt for Apple Intelligence (no JSON - uses native tool calling)
+private let appleIntelligenceDefaultSystemPrompt = """
+    You are Llama, a helpful voice assistant. Keep responses concise \
+    and conversational, suitable for reading on a small UI display. \
+    The current user is {speaker_name}. Be friendly but brief.
+    """
+
 /// Apple Intelligence provider using Foundation Models framework
 ///
 /// This provider integrates with Apple's on-device AI powered by the Foundation Models
 /// framework introduced in macOS 26 (Tahoe) and iOS 26.
 actor AppleIntelligenceProvider: LLMServiceProtocol {
     private let config: AppleIntelligenceConfig
-    private let systemPromptTemplate: String
 
     struct ToolInvocation {
         let skillId: String
@@ -44,16 +50,16 @@ actor AppleIntelligenceProvider: LLMServiceProtocol {
         config.enabled && isAvailable
     }
 
-    init(config: AppleIntelligenceConfig, systemPromptTemplate: String = LLMConfig.defaultSystemPrompt) {
+    init(config: AppleIntelligenceConfig) {
         self.config = config
-        self.systemPromptTemplate = systemPromptTemplate
     }
 
     func complete(
         prompt: String,
         context: CommandContext?,
         conversationHistory: [ConversationTurn],
-        skillsManifest: String?
+        skillsManifest: String?,
+        systemPrompt systemPromptOverride: String?
     ) async throws -> String {
         guard config.enabled else {
             throw LLMError.notConfigured
@@ -69,7 +75,8 @@ actor AppleIntelligenceProvider: LLMServiceProtocol {
                 prompt: prompt,
                 context: context,
                 conversationHistory: conversationHistory,
-                skillsManifest: skillsManifest
+                skillsManifest: skillsManifest,
+                systemPromptOverride: systemPromptOverride
             )
         }
         #endif
@@ -120,12 +127,14 @@ actor AppleIntelligenceProvider: LLMServiceProtocol {
         prompt: String,
         context: CommandContext?,
         conversationHistory: [ConversationTurn],
-        skillsManifest: String?
+        skillsManifest: String?,
+        systemPromptOverride: String?
     ) async throws -> String {
         // Build the system prompt with speaker name
         let speakerName = context?.speaker?.name ?? "Guest"
+        let template = systemPromptOverride ?? appleIntelligenceDefaultSystemPrompt
         let systemPrompt = Self.buildInstructions(
-            template: systemPromptTemplate,
+            template: template,
             speakerName: speakerName,
             skillsManifest: skillsManifest,
             useToolCalling: skillsManifest != nil

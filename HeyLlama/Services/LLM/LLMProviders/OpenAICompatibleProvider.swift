@@ -1,18 +1,30 @@
 import Foundation
 
+/// Default system prompt for OpenAI-compatible providers (includes JSON format for skills)
+private let openAIDefaultSystemPrompt = """
+    You are Llama, a helpful voice assistant. Keep responses concise \
+    and conversational, suitable for reading on a small UI display. \
+    The current user is {speaker_name}. Be friendly but brief.
+    """
+
+/// JSON format instructions appended when skills are available
+private let openAISkillsJSONInstructions = """
+    You must respond with a single JSON object only. Do not wrap in \
+    code fences or add extra text. Never put tool call JSON inside \
+    the "text" field.
+    """
+
 /// OpenAI-compatible API provider (works with Ollama, LM Studio, etc.)
 actor OpenAICompatibleProvider: LLMServiceProtocol {
     private let config: OpenAICompatibleConfig
-    private let systemPromptTemplate: String
     private let urlSession: URLSession
 
     var isConfigured: Bool {
         config.isConfigured
     }
 
-    init(config: OpenAICompatibleConfig, systemPromptTemplate: String = LLMConfig.defaultSystemPrompt) {
+    init(config: OpenAICompatibleConfig) {
         self.config = config
-        self.systemPromptTemplate = systemPromptTemplate
 
         // Configure URLSession with timeout
         let configuration = URLSessionConfiguration.default
@@ -25,7 +37,8 @@ actor OpenAICompatibleProvider: LLMServiceProtocol {
         prompt: String,
         context: CommandContext?,
         conversationHistory: [ConversationTurn],
-        skillsManifest: String?
+        skillsManifest: String?,
+        systemPrompt systemPromptOverride: String?
     ) async throws -> String {
         guard isConfigured else {
             throw LLMError.notConfigured
@@ -42,9 +55,19 @@ actor OpenAICompatibleProvider: LLMServiceProtocol {
             request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
         }
 
-        // Build system prompt with speaker name
+        // Determine system prompt: use override if provided, otherwise build default
         let speakerName = context?.speaker?.name
-        let systemPrompt = buildSystemPrompt(template: systemPromptTemplate, speakerName: speakerName)
+        let systemPrompt: String
+        if let override = systemPromptOverride {
+            systemPrompt = buildSystemPrompt(template: override, speakerName: speakerName)
+        } else {
+            // Use default, add JSON instructions if skills are available
+            var template = openAIDefaultSystemPrompt
+            if skillsManifest != nil {
+                template += " " + openAISkillsJSONInstructions
+            }
+            systemPrompt = buildSystemPrompt(template: template, speakerName: speakerName)
+        }
 
         // Build request body
         let body = buildRequestBody(

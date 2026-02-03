@@ -11,6 +11,7 @@ actor MockLLMService: LLMServiceProtocol {
     private(set) var lastContext: CommandContext?
     private(set) var lastConversationHistory: [ConversationTurn] = []
     private(set) var lastSkillsManifest: String?
+    private(set) var lastSystemPrompt: String?
     private(set) var completionCount: Int = 0
 
     var isConfigured: Bool {
@@ -40,12 +41,14 @@ actor MockLLMService: LLMServiceProtocol {
         prompt: String,
         context: CommandContext?,
         conversationHistory: [ConversationTurn],
-        skillsManifest: String?
+        skillsManifest: String?,
+        systemPrompt: String?
     ) async throws -> String {
         lastPrompt = prompt
         lastContext = context
         lastConversationHistory = conversationHistory
         lastSkillsManifest = skillsManifest
+        lastSystemPrompt = systemPrompt
         completionCount += 1
 
         if let error = mockError {
@@ -64,6 +67,7 @@ actor MockLLMService: LLMServiceProtocol {
         lastContext = nil
         lastConversationHistory = []
         lastSkillsManifest = nil
+        lastSystemPrompt = nil
         completionCount = 0
     }
 }

@@ -2,13 +2,22 @@ import CoreLocation
 import Foundation
 
 enum LocationHelpers {
-    static func normalizeLocationToken(_ location: String?) -> String? {
+    /// Normalizes a location string, filtering out tokens that indicate "current location".
+    /// - Parameters:
+    ///   - location: The raw location string from skill arguments
+    ///   - speakerName: Optional speaker name to filter out. LLMs sometimes incorrectly pass
+    ///                  the user's name as a location when they say "my weather" - this is a
+    ///                  defensive check to catch that case even if the LLM prompt doesn't prevent it.
+    /// - Returns: The location string if it's a valid place name, or nil to use GPS location
+    static func normalizeLocationToken(_ location: String?, speakerName: String? = nil) -> String? {
         guard let location = location?.trimmingCharacters(in: .whitespacesAndNewlines),
               !location.isEmpty else {
             return nil
         }
 
         let normalized = location.lowercased()
+
+        // Standard tokens that mean "use current location"
         let userLocationTokens: Set<String> = [
             "user",
             "me",
@@ -19,7 +28,18 @@ enum LocationHelpers {
             "local"
         ]
 
-        return userLocationTokens.contains(normalized) ? nil : location
+        if userLocationTokens.contains(normalized) {
+            return nil
+        }
+
+        // Filter out speaker name - LLMs sometimes pass the user's name as location
+        // when interpreting "my weather" (e.g., "Rich's weather" -> location: "Rich")
+        if let speakerName = speakerName?.lowercased(),
+           normalized == speakerName {
+            return nil
+        }
+
+        return location
     }
 }
 

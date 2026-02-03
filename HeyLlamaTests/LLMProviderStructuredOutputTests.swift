@@ -15,10 +15,7 @@ final class LLMProviderStructuredOutputTests: XCTestCase {
         let skillsManifest = "Available skills: weather.forecast"
         let systemPrompt = "You are Llama"
 
-        let provider = OpenAICompatibleProvider(
-            config: config,
-            systemPromptTemplate: systemPrompt
-        )
+        let provider = OpenAICompatibleProvider(config: config)
 
         // Build request body with skills manifest
         let body = provider.buildRequestBody(
@@ -44,10 +41,7 @@ final class LLMProviderStructuredOutputTests: XCTestCase {
             model: "llama3.2"
         )
 
-        let provider = OpenAICompatibleProvider(
-            config: config,
-            systemPromptTemplate: "You are Llama"
-        )
+        let provider = OpenAICompatibleProvider(config: config)
 
         let body = provider.buildRequestBody(
             systemPrompt: "You are Llama",
@@ -67,10 +61,7 @@ final class LLMProviderStructuredOutputTests: XCTestCase {
             model: "llama3.2"
         )
 
-        let provider = OpenAICompatibleProvider(
-            config: config,
-            systemPromptTemplate: "You are Llama"
-        )
+        let provider = OpenAICompatibleProvider(config: config)
 
         let body = provider.buildRequestBody(
             systemPrompt: "You are Llama",
@@ -95,7 +86,7 @@ final class LLMProviderStructuredOutputTests: XCTestCase {
             model: "llama3.2"
         )
 
-        let provider = OpenAICompatibleProvider(config: config, systemPromptTemplate: "")
+        let provider = OpenAICompatibleProvider(config: config)
 
         // Simulate a response that contains JSON
         let responseJSON = """
@@ -120,7 +111,7 @@ final class LLMProviderStructuredOutputTests: XCTestCase {
             model: "llama3.2"
         )
 
-        let provider = OpenAICompatibleProvider(config: config, systemPromptTemplate: "")
+        let provider = OpenAICompatibleProvider(config: config)
 
         let responseJSON = """
         {

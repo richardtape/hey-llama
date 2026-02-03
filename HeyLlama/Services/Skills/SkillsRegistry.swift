@@ -45,6 +45,9 @@ enum RegisteredSkill: CaseIterable, Sendable {
     var argumentSchemaJSON: String {
         switch self {
         case .weatherForecast:
+            // NOTE: The location description is intentionally detailed to prevent LLMs from
+            // passing the speaker's name as a location. Without this guidance, LLMs often
+            // interpret "my weather" as meaning the speaker's name rather than GPS location.
             return """
             {
                 "type": "object",
@@ -56,7 +59,7 @@ enum RegisteredSkill: CaseIterable, Sendable {
                     },
                     "location": {
                         "type": "string",
-                        "description": "Optional location name. If omitted, uses current location."
+                        "description": "A geographic place name (city, region, or address) like 'New York', 'London', or 'Tokyo'. ONLY include this if the user explicitly names a place. Do NOT pass the user's name here. Omit this parameter entirely when the user says 'my weather' or doesn't specify a location - their GPS location will be used automatically."
                     }
                 },
                 "required": ["when"]

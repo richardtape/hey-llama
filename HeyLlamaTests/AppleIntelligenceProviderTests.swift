@@ -97,14 +97,12 @@ final class AppleIntelligenceProviderTests: XCTestCase {
         XCTAssertEqual(firstCheck, secondCheck, "isAvailable should be consistent")
     }
 
-    func testSystemPromptTemplateUsed() {
-        // Verify the custom system prompt template is stored
-        let customTemplate = "You are a test assistant for {speaker_name}."
+    func testProviderInitialization() {
+        // Verify provider can be created with config
         let config = AppleIntelligenceConfig()
-        let provider = AppleIntelligenceProvider(config: config, systemPromptTemplate: customTemplate)
+        let provider = AppleIntelligenceProvider(config: config)
 
-        // Provider should be created successfully with custom template
-        // Actual template usage is tested indirectly through completion
+        // Provider should be created successfully
         XCTAssertNotNil(provider)
     }
 
