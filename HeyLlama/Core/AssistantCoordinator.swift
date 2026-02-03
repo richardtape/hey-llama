@@ -117,6 +117,8 @@ final class AssistantCoordinator: ObservableObject {
             return
         }
 
+        await runStartupPreflight()
+
         isModelLoading = true
         state = .idle
 
@@ -149,6 +151,36 @@ final class AssistantCoordinator: ObservableObject {
         audioEngine.start()
         isListening = true
         state = .listening
+    }
+
+    private func runStartupPreflight() async {
+        print("[Startup] LLM provider: \(config.llm.provider.rawValue)")
+
+        let enabledSkills = skillsRegistry.enabledSkills
+        let enabledSkillIds = enabledSkills.map { $0.id }
+        print("[Startup] Enabled skills: \(enabledSkillIds)")
+
+        for skill in enabledSkills {
+            let requiredPermissions = skill.requiredPermissions
+            let permissionNames = requiredPermissions.map { $0.displayName }
+
+            if permissionNames.isEmpty {
+                print("[Startup] Skill \(skill.id) requires no permissions")
+                continue
+            }
+
+            print("[Startup] Skill \(skill.id) required permissions: \(permissionNames)")
+
+            for permission in requiredPermissions {
+                let status = await permissionManager.checkPermissionStatus(permission)
+                print("[Startup] Permission \(permission.rawValue) status: \(status)")
+
+                if status == .undetermined {
+                    let granted = await permissionManager.requestPermission(permission)
+                    print("[Startup] Permission \(permission.rawValue) request result: \(granted)")
+                }
+            }
+        }
     }
 
     func shutdown() {
