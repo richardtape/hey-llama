@@ -45,16 +45,10 @@ struct RemindersAddItemSkill {
         let eventStore = EKEventStore()
 
         // Find the target list
-        let calendars = eventStore.calendars(for: .reminder)
-        guard let targetCalendar = calendars.first(where: {
-            $0.title.localizedCaseInsensitiveCompare(args.listName) == .orderedSame
-        }) else {
-            let availableLists = calendars.map { $0.title }.joined(separator: ", ")
-            throw SkillError.executionFailed(
-                "Could not find a Reminders list named '\(args.listName)'. " +
-                "Available lists: \(availableLists.isEmpty ? "none" : availableLists)"
-            )
-        }
+        let targetCalendar = try RemindersHelpers.findReminderList(
+            named: args.listName,
+            in: eventStore
+        )
 
         // Create the reminder
         let reminder = EKReminder(eventStore: eventStore)
@@ -66,13 +60,7 @@ struct RemindersAddItemSkill {
         }
 
         if let dueDateString = args.dueDateISO8601 {
-            let formatter = ISO8601DateFormatter()
-            if let dueDate = formatter.date(from: dueDateString) {
-                reminder.dueDateComponents = Calendar.current.dateComponents(
-                    [.year, .month, .day, .hour, .minute],
-                    from: dueDate
-                )
-            }
+            reminder.dueDateComponents = RemindersHelpers.parseDueDateISO8601(dueDateString)
         }
 
         // Save the reminder
