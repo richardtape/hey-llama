@@ -472,9 +472,8 @@ final class AssistantCoordinator: ObservableObject {
             }
 
             // Check permissions
-            let hasPermissions = await permissionManager.hasAllPermissions(for: skill)
-            if !hasPermissions {
-                let missing = await permissionManager.missingPermissions(for: skill)
+            let missing = await permissionManager.missingPermissions(for: skill)
+            if !missing.isEmpty {
                 let missingNames = missing.map { $0.displayName }.joined(separator: ", ")
                 results.append("The \(skill.name) skill requires \(missingNames) permission. Please grant access in System Settings.")
                 continue
