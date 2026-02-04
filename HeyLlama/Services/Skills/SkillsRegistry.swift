@@ -8,6 +8,7 @@ enum RegisteredSkill: CaseIterable, Sendable {
     case remindersCompleteItem
     case remindersReadItems
     case musicPlay
+    case musicPlayShuffled
     case musicAddToPlaylist
     case musicNowPlaying
     case musicControl
@@ -20,6 +21,7 @@ enum RegisteredSkill: CaseIterable, Sendable {
         case .remindersCompleteItem: return "reminders.complete_item"
         case .remindersReadItems: return "reminders.read_items"
         case .musicPlay: return "music.play"
+        case .musicPlayShuffled: return "music.play_shuffled"
         case .musicAddToPlaylist: return "music.add_to_playlist"
         case .musicNowPlaying: return "music.now_playing"
         case .musicControl: return "music.control"
@@ -34,6 +36,7 @@ enum RegisteredSkill: CaseIterable, Sendable {
         case .remindersCompleteItem: return "Complete Reminder"
         case .remindersReadItems: return "Read Reminders"
         case .musicPlay: return "Play Music"
+        case .musicPlayShuffled: return "Play Shuffled"
         case .musicAddToPlaylist: return "Add Track to Playlist"
         case .musicNowPlaying: return "Now Playing"
         case .musicControl: return "Music Controls"
@@ -54,6 +57,8 @@ enum RegisteredSkill: CaseIterable, Sendable {
             return "Read items from a Reminders list (e.g., 'what's on my groceries list')"
         case .musicPlay:
             return "Play music by song, artist, album, or playlist"
+        case .musicPlayShuffled:
+            return "Play and shuffle a playlist, album, artist, or song"
         case .musicAddToPlaylist:
             return "Add a song to an Apple Music playlist"
         case .musicNowPlaying:
@@ -71,6 +76,7 @@ enum RegisteredSkill: CaseIterable, Sendable {
         case .remindersCompleteItem: return [.reminders]
         case .remindersReadItems: return [.reminders]
         case .musicPlay: return [.music]
+        case .musicPlayShuffled: return [.music]
         case .musicAddToPlaylist: return [.music]
         case .musicNowPlaying: return [.music]
         case .musicControl: return [.music]
@@ -85,6 +91,7 @@ enum RegisteredSkill: CaseIterable, Sendable {
         case .remindersCompleteItem: return true
         case .remindersReadItems: return true
         case .musicPlay: return true
+        case .musicPlayShuffled: return true
         case .musicAddToPlaylist: return true
         case .musicNowPlaying: return true
         case .musicControl: return true
@@ -193,6 +200,8 @@ enum RegisteredSkill: CaseIterable, Sendable {
             """
         case .musicPlay:
             return AppleMusicPlaySkill.argumentsJSONSchema
+        case .musicPlayShuffled:
+            return AppleMusicPlayShuffledSkill.argumentsJSONSchema
         case .musicAddToPlaylist:
             return AppleMusicAddToPlaylistSkill.argumentsJSONSchema
         case .musicNowPlaying:
@@ -216,6 +225,8 @@ enum RegisteredSkill: CaseIterable, Sendable {
             return try await RemindersReadItemsSkill().run(argumentsJSON: argumentsJSON, context: context)
         case .musicPlay:
             return try await AppleMusicPlaySkill().run(argumentsJSON: argumentsJSON, context: context)
+        case .musicPlayShuffled:
+            return try await AppleMusicPlayShuffledSkill().run(argumentsJSON: argumentsJSON, context: context)
         case .musicAddToPlaylist:
             return try await AppleMusicAddToPlaylistSkill().run(argumentsJSON: argumentsJSON, context: context)
         case .musicNowPlaying:
@@ -253,6 +264,7 @@ struct SkillsRegistry {
         RemindersCompleteItemSkill.self,
         RemindersReadItemsSkill.self,
         AppleMusicPlaySkill.self,
+        AppleMusicPlayShuffledSkill.self,
         AppleMusicAddToPlaylistSkill.self,
         AppleMusicNowPlayingSkill.self,
         AppleMusicControlSkill.self,
@@ -415,6 +427,13 @@ struct SkillsRegistry {
                 from: argumentsJSON.data(using: .utf8)!
             )
             return try await AppleMusicPlaySkill().execute(arguments: args, context: context)
+
+        case is AppleMusicPlayShuffledSkill.Type:
+            let args = try JSONDecoder().decode(
+                AppleMusicPlayShuffledArguments.self,
+                from: argumentsJSON.data(using: .utf8)!
+            )
+            return try await AppleMusicPlayShuffledSkill().execute(arguments: args, context: context)
 
         case is AppleMusicAddToPlaylistSkill.Type:
             let args = try JSONDecoder().decode(

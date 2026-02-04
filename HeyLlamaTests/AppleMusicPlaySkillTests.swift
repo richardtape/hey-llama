@@ -29,7 +29,7 @@ final class AppleMusicPlaySkillTests: XCTestCase {
 
     func testCanDecodeArgumentsFromJSON() throws {
         let json = """
-            {"query": "Halo", "entityType": "song", "source": "library"}
+            {"query": "Halo", "entityType": "song", "source": "library", "shuffle": true}
             """
         let data = json.data(using: .utf8)!
         let args = try JSONDecoder().decode(AppleMusicPlayArguments.self, from: data)
@@ -37,5 +37,6 @@ final class AppleMusicPlaySkillTests: XCTestCase {
         XCTAssertEqual(args.query, "Halo")
         XCTAssertEqual(args.entityType, "song")
         XCTAssertEqual(args.source, "library")
+        XCTAssertEqual(args.shuffle, true)
     }
 }

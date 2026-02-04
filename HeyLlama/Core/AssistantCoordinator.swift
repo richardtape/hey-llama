@@ -634,10 +634,12 @@ final class AssistantCoordinator: ObservableObject {
     private func executeSkillCalls(_ calls: [SkillCall], userRequest: String? = nil) async throws -> String {
         let sanitizedCalls = sanitizeWeatherCalls(calls, userRequest: userRequest)
         let filteredCalls = filterReminderCalls(sanitizedCalls, userRequest: userRequest)
-        var results: [String] = []
+        let adjusted = adjustMusicCalls(filteredCalls, userRequest: userRequest)
+        let adjustedCalls = adjusted.calls
+        var results: [String] = adjusted.preResults
         var summaries: [SkillSummary] = []
 
-        for call in filteredCalls {
+        for call in adjustedCalls {
             // Use new Skill type API
             guard let skillType = SkillsRegistry.skillType(withId: call.skillId) else {
                 // Don't add to summaries - skill doesn't exist
@@ -769,6 +771,7 @@ final class AssistantCoordinator: ObservableObject {
     private func updateMusicSkillEnabled() {
         let ids = [
             AppleMusicPlaySkill.id,
+            AppleMusicPlayShuffledSkill.id,
             AppleMusicAddToPlaylistSkill.id,
             AppleMusicNowPlayingSkill.id,
             AppleMusicControlSkill.id
@@ -785,6 +788,66 @@ final class AssistantCoordinator: ObservableObject {
         default:
             break
         }
+    }
+
+    private func adjustMusicCalls(_ calls: [SkillCall], userRequest: String?) -> (calls: [SkillCall], preResults: [String]) {
+        var adjusted: [SkillCall] = []
+        var preResults: [String] = []
+        let normalizedRequest = userRequest?.lowercased() ?? ""
+
+        for call in calls {
+            guard call.skillId == AppleMusicControlSkill.id,
+                  let action = call.arguments["action"] as? String,
+                  action.lowercased() == "shuffle"
+            else {
+                // If the model chose play_shuffled but the user didn't ask to shuffle,
+                // downgrade to normal play.
+                if call.skillId == AppleMusicPlayShuffledSkill.id,
+                   !normalizedRequest.contains("shuffle") {
+                    adjusted.append(SkillCall(skillId: AppleMusicPlaySkill.id, arguments: call.arguments))
+                } else {
+                    adjusted.append(call)
+                }
+                continue
+            }
+
+            let playbackController = MusicPlaybackController.shared
+            if playbackController.hasQueuedItems {
+                adjusted.append(call)
+                continue
+            }
+
+            if let request = userRequest,
+               let playlistName = extractPlaylistName(from: request) {
+                let args: [String: Any] = [
+                    "entityType": "playlist",
+                    "query": playlistName,
+                    "shuffle": true
+                ]
+                adjusted.append(SkillCall(skillId: AppleMusicPlayShuffledSkill.id, arguments: args))
+            } else {
+                preResults.append("Which playlist do you want to shuffle?")
+            }
+        }
+
+        return (adjusted, preResults)
+    }
+
+    private func extractPlaylistName(from request: String) -> String? {
+        var cleaned = request
+        cleaned = cleaned.replacingOccurrences(
+            of: "(?i)please\\s+|could you\\s+|can you\\s+|would you\\s+",
+            with: "",
+            options: .regularExpression
+        )
+        cleaned = cleaned.replacingOccurrences(
+            of: "(?i)shuffle|the|playlist|play|music",
+            with: "",
+            options: .regularExpression
+        )
+        cleaned = cleaned.replacingOccurrences(of: "[?!.]", with: "", options: .regularExpression)
+        let trimmed = cleaned.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
     }
 
     // MARK: - Call Sanitization

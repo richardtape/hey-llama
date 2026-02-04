@@ -3,11 +3,11 @@ import MusicKit
 
 // MARK: - Arguments
 
-/// Arguments for the Apple Music play skill.
+/// Arguments for the Apple Music play shuffled skill.
 ///
 /// IMPORTANT: When modifying this struct, you MUST update `argumentsJSONSchema`
-/// to match. Run `AppleMusicPlaySkillTests.testArgumentsMatchJSONSchema` to verify.
-struct AppleMusicPlayArguments: Codable {
+/// to match. Run `AppleMusicPlayShuffledSkillTests.testArgumentsMatchJSONSchema` to verify.
+struct AppleMusicPlayShuffledArguments: Codable {
     /// The user's spoken query (song, artist, album, or playlist)
     let query: String
 
@@ -16,27 +16,24 @@ struct AppleMusicPlayArguments: Codable {
 
     /// Optional source override: auto, library, catalog
     let source: String?
-
-    /// Optional shuffle flag
-    let shuffle: Bool?
 }
 
 // MARK: - Skill Definition
 
-/// Skill to play Apple Music content using the system music player.
-struct AppleMusicPlaySkill: Skill {
+/// Skill to play and shuffle Apple Music content using the system music player.
+struct AppleMusicPlayShuffledSkill: Skill {
 
     // MARK: - Skill Metadata
 
-    static let id = "music.play"
-    static let name = "Play Music"
-    static let skillDescription = "Play music by song, artist, album, or playlist using Apple Music. If the user asks to shuffle, set shuffle=true. If the user doesn't specify a source, prefer the user's library and fall back to catalog."
+    static let id = "music.play_shuffled"
+    static let name = "Play Shuffled"
+    static let skillDescription = "Play and shuffle a playlist, album, artist, or song. Use only when the user explicitly asks to shuffle."
     static let requiredPermissions: [SkillPermission] = [.music]
     static let includesInResponseAgent = true
 
     // MARK: - Arguments Type Alias
 
-    typealias Arguments = AppleMusicPlayArguments
+    typealias Arguments = AppleMusicPlayShuffledArguments
 
     // MARK: - JSON Schema
 
@@ -57,10 +54,6 @@ struct AppleMusicPlaySkill: Skill {
                     "type": "string",
                     "enum": ["auto", "library", "catalog", "apple_music", "apple music"],
                     "description": "Optional source override. Use library for local items, catalog for Apple Music. Default is auto."
-                },
-                "shuffle": {
-                    "type": "boolean",
-                    "description": "Set true if the user asks to shuffle the playback."
                 }
             },
             "required": ["query", "entityType"]
@@ -102,12 +95,9 @@ struct AppleMusicPlaySkill: Skill {
                 }
             }
             try await playbackController.playSong(song)
-            if arguments.shuffle == true {
-                _ = try await playbackController.shuffleQueue()
-            }
             return playbackResult(
-                baseText: "Playing \(song.title) by \(song.artistName).",
-                summaryText: "Playing \(song.title)",
+                baseText: "Playing \(song.title) by \(song.artistName) on shuffle.",
+                summaryText: "Playing \(song.title) on shuffle",
                 outputMessage: outputMessage
             )
 
@@ -126,13 +116,11 @@ struct AppleMusicPlaySkill: Skill {
             guard !tracks.isEmpty else {
                 return SkillResult(text: "I couldn't load tracks for '\(album.title)'.")
             }
-            try await playbackController.playQueue(tracks)
-            if arguments.shuffle == true {
-                _ = try await playbackController.shuffleQueue()
-            }
+            let shuffledTracks = tracks.shuffled()
+            try await playbackController.playQueue(shuffledTracks)
             return playbackResult(
-                baseText: "Playing the album \(album.title) by \(album.artistName).",
-                summaryText: "Playing album \(album.title)",
+                baseText: "Playing the album \(album.title) by \(album.artistName) on shuffle.",
+                summaryText: "Playing album \(album.title) on shuffle",
                 outputMessage: outputMessage
             )
 
@@ -151,13 +139,11 @@ struct AppleMusicPlaySkill: Skill {
             guard !songs.isEmpty else {
                 return SkillResult(text: "I couldn't find songs for '\(artist.name)'.")
             }
-            try await playbackController.playSongs(songs)
-            if arguments.shuffle == true {
-                _ = try await playbackController.shuffleQueue()
-            }
+            let shuffledSongs = songs.shuffled()
+            try await playbackController.playSongs(shuffledSongs)
             return playbackResult(
-                baseText: "Playing \(artist.name).",
-                summaryText: "Playing artist \(artist.name)",
+                baseText: "Playing \(artist.name) on shuffle.",
+                summaryText: "Playing artist \(artist.name) on shuffle",
                 outputMessage: outputMessage
             )
 
@@ -176,13 +162,11 @@ struct AppleMusicPlaySkill: Skill {
             guard !tracks.isEmpty else {
                 return SkillResult(text: "I couldn't load tracks for '\(playlist.name)'.")
             }
-            try await playbackController.playQueue(tracks)
-            if arguments.shuffle == true {
-                _ = try await playbackController.shuffleQueue()
-            }
+            let shuffledTracks = tracks.shuffled()
+            try await playbackController.playQueue(shuffledTracks)
             return playbackResult(
-                baseText: "Playing the playlist \(playlist.name).",
-                summaryText: "Playing playlist \(playlist.name)",
+                baseText: "Playing the playlist \(playlist.name) on shuffle.",
+                summaryText: "Playing playlist \(playlist.name) on shuffle",
                 outputMessage: outputMessage
             )
         }
@@ -307,5 +291,4 @@ struct AppleMusicPlaySkill: Skill {
         ]
         return SkillResult(text: response, data: data, summary: summary)
     }
-
 }

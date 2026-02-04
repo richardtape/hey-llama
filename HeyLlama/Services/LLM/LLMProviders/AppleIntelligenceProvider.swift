@@ -259,6 +259,8 @@ actor AppleIntelligenceProvider: LLMServiceProtocol {
             return RemindersReadItemsTool(recorder: recorder)
         case is AppleMusicPlaySkill.Type:
             return AppleMusicPlayTool(recorder: recorder)
+        case is AppleMusicPlayShuffledSkill.Type:
+            return AppleMusicPlayShuffledTool(recorder: recorder)
         case is AppleMusicAddToPlaylistSkill.Type:
             return AppleMusicAddToPlaylistTool(recorder: recorder)
         case is AppleMusicNowPlayingSkill.Type:
@@ -431,6 +433,37 @@ actor AppleIntelligenceProvider: LLMServiceProtocol {
     struct AppleMusicPlayTool: Tool {
         let name: String = AppleMusicPlaySkill.id
         let description: String = AppleMusicPlaySkill.skillDescription
+        let recorder: ToolInvocationRecorder
+
+        @Generable
+        struct Arguments: ConvertibleFromGeneratedContent {
+            var query: String
+            var entityType: String
+            var source: String?
+            var shuffle: Bool?
+        }
+
+        func call(arguments: Arguments) async throws -> String {
+            var args: [String: Any] = [
+                "query": arguments.query,
+                "entityType": arguments.entityType
+            ]
+            if let source = arguments.source, !source.isEmpty {
+                args["source"] = source
+            }
+            if let shuffle = arguments.shuffle {
+                args["shuffle"] = shuffle
+            }
+            await recorder.record(ToolInvocation(skillId: name, arguments: args))
+            return "OK"
+        }
+    }
+
+    /// Apple Music play shuffled tool for Apple's Foundation Models.
+    @available(macOS 26.0, iOS 26.0, *)
+    struct AppleMusicPlayShuffledTool: Tool {
+        let name: String = AppleMusicPlayShuffledSkill.id
+        let description: String = AppleMusicPlayShuffledSkill.skillDescription
         let recorder: ToolInvocationRecorder
 
         @Generable

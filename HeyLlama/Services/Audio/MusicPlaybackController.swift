@@ -18,6 +18,11 @@ final class MusicPlaybackController: ObservableObject {
     private var lastQueuedArtist: String = ""
     private var queuedItems: [(title: String, artist: String)] = []
     private var queuedIndex: Int = 0
+    private var queuedSource: QueuedSource?
+
+    var hasQueuedItems: Bool {
+        !queuedItems.isEmpty
+    }
 
     private init() {
         startPolling()
@@ -25,6 +30,7 @@ final class MusicPlaybackController: ObservableObject {
 
     func playQueue(_ tracks: [Track]) async throws {
         guard !tracks.isEmpty else { return }
+        queuedSource = .tracks(tracks)
         queuedItems = tracks.map { ($0.title, $0.artistName) }
         queuedIndex = 0
         setQueuedFallback()
@@ -35,6 +41,7 @@ final class MusicPlaybackController: ObservableObject {
     }
 
     func playSong(_ song: Song) async throws {
+        queuedSource = .songs([song])
         queuedItems = [(song.title, song.artistName)]
         queuedIndex = 0
         setQueuedFallback()
@@ -46,6 +53,7 @@ final class MusicPlaybackController: ObservableObject {
 
     func playSongs(_ songs: [Song]) async throws {
         guard !songs.isEmpty else { return }
+        queuedSource = .songs(songs)
         queuedItems = songs.map { ($0.title, $0.artistName) }
         queuedIndex = 0
         setQueuedFallback()
@@ -78,6 +86,31 @@ final class MusicPlaybackController: ObservableObject {
         advanceQueueIndex(by: -1)
         await refreshNowPlaying()
         await refreshNowPlayingAfterDelay()
+    }
+
+    func shuffleQueue() async throws -> Bool {
+        guard let source = queuedSource else { return false }
+        switch source {
+        case .tracks(let tracks):
+            let shuffled = tracks.shuffled()
+            queuedSource = .tracks(shuffled)
+            queuedItems = shuffled.map { ($0.title, $0.artistName) }
+            queuedIndex = 0
+            setQueuedFallback()
+            player.queue = ApplicationMusicPlayer.Queue(for: shuffled)
+            try await player.play()
+        case .songs(let songs):
+            let shuffled = songs.shuffled()
+            queuedSource = .songs(shuffled)
+            queuedItems = shuffled.map { ($0.title, $0.artistName) }
+            queuedIndex = 0
+            setQueuedFallback()
+            player.queue = ApplicationMusicPlayer.Queue(for: shuffled)
+            try await player.play()
+        }
+        await refreshNowPlaying()
+        await refreshNowPlayingAfterDelay()
+        return true
     }
 
     func refreshNowPlaying() async {
@@ -143,6 +176,11 @@ final class MusicPlaybackController: ObservableObject {
             queuedIndex = nextIndex
         }
         setQueuedFallback()
+    }
+
+    private enum QueuedSource {
+        case tracks([Track])
+        case songs([Song])
     }
 
     private func refreshNowPlayingAfterDelay() async {

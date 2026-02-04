@@ -24,7 +24,7 @@ struct AppleMusicControlSkill: Skill {
 
     static let id = "music.control"
     static let name = "Music Controls"
-    static let skillDescription = "Control Apple Music playback (pause, resume, next, previous, shuffle, repeat)."
+    static let skillDescription = "Control Apple Music playback (pause, resume, next, previous, shuffle, repeat). Use this only when music is already playing."
     static let requiredPermissions: [SkillPermission] = [.music]
     static let includesInResponseAgent = true
 
@@ -81,7 +81,15 @@ struct AppleMusicControlSkill: Skill {
             try await controller.previous()
             return SkillResult(text: "Going back to the previous track.")
         case "shuffle":
-            return SkillResult(text: "Shuffle control isn't available on this platform yet.")
+            let mode = (arguments.mode ?? "on").lowercased()
+            if mode == "off" {
+                return SkillResult(text: "Shuffle off isn't supported yet.")
+            }
+            let didShuffle = try await controller.shuffleQueue()
+            if didShuffle {
+                return SkillResult(text: "Shuffling the current queue.")
+            }
+            return SkillResult(text: "There's nothing queued to shuffle. Try asking me to shuffle a specific playlist.")
         case "repeat":
             return SkillResult(text: "Repeat control isn't available on this platform yet.")
         default:

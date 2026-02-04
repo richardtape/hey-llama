@@ -52,8 +52,11 @@ enum MusicKitHelpers {
     // MARK: - Parsing
 
     static func parseSource(_ value: String?) -> Source {
-        guard let value = value?.lowercased() else { return .auto }
-        return Source(rawValue: value) ?? .auto
+        guard let raw = value?.lowercased() else { return .auto }
+        if raw.contains("apple music") || raw == "apple_music" {
+            return .catalog
+        }
+        return Source(rawValue: raw) ?? .auto
     }
 
     static func parseEntityType(_ value: String) -> EntityType? {
