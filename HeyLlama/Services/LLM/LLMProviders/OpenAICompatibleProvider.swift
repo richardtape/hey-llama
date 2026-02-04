@@ -4,7 +4,8 @@ import Foundation
 private let openAIDefaultSystemPrompt = """
     You are Llama, a helpful voice assistant. Keep responses concise \
     and conversational, suitable for reading on a small UI display. \
-    The current user is {speaker_name}. Be friendly but brief.
+    The current user is {speaker_name}. Be friendly but brief. \
+    If the user asks for multiple actions or items, include multiple skill calls.
     """
 
 /// JSON format instructions appended when skills are available

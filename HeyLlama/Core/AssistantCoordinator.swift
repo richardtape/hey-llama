@@ -64,11 +64,15 @@ final class AssistantCoordinator: ObservableObject {
         }
 
 
-        self.commandProcessor = CommandProcessor(wakePhrase: config.wakePhrase)
+        self.commandProcessor = CommandProcessor(
+            wakePhrase: config.wakePhrase,
+            closingPhrases: config.llm.conversationClosingPhrases
+        )
         self.speakerStore = SpeakerStore()
         self.conversationManager = ConversationManager(
             timeoutMinutes: config.llm.conversationTimeoutMinutes,
-            maxTurns: config.llm.maxConversationTurns
+            maxTurns: config.llm.maxConversationTurns,
+            followUpWindowSeconds: config.llm.followUpWindowSeconds
         )
 
         // Check if onboarding is required
@@ -193,6 +197,7 @@ final class AssistantCoordinator: ObservableObject {
         lastCommand = nil
         lastResponse = nil
         currentSpeaker = nil
+        conversationManager.endFollowUpWindow()
     }
 
     // MARK: - Configuration
@@ -209,7 +214,8 @@ final class AssistantCoordinator: ObservableObject {
         // Update conversation manager settings
         conversationManager = ConversationManager(
             timeoutMinutes: config.llm.conversationTimeoutMinutes,
-            maxTurns: config.llm.maxConversationTurns
+            maxTurns: config.llm.maxConversationTurns,
+            followUpWindowSeconds: config.llm.followUpWindowSeconds
         )
 
         // Update skills configuration
@@ -235,7 +241,8 @@ final class AssistantCoordinator: ObservableObject {
 
         conversationManager = ConversationManager(
             timeoutMinutes: config.llm.conversationTimeoutMinutes,
-            maxTurns: config.llm.maxConversationTurns
+            maxTurns: config.llm.maxConversationTurns,
+            followUpWindowSeconds: config.llm.followUpWindowSeconds
         )
 
         skillsRegistry.updateConfig(config.skills)
@@ -251,6 +258,7 @@ final class AssistantCoordinator: ObservableObject {
     /// Clear conversation history (e.g., for "new conversation" command)
     func clearConversation() {
         conversationManager.clearHistory()
+        conversationManager.endFollowUpWindow()
     }
 
     // MARK: - Speaker Management
@@ -315,8 +323,12 @@ final class AssistantCoordinator: ObservableObject {
         print("Processing utterance: \(String(format: "%.2f", audio.duration))s")
 
         // Run STT and Speaker ID in parallel
+        let isFollowUpActive = conversationManager.isFollowUpActive()
         async let transcriptionTask = sttService.transcribe(audio)
-        async let speakerTask = speakerService.identify(audio)
+        async let speakerTask = speakerService.identify(
+            audio,
+            thresholdOverride: isFollowUpActive ? 0.8 : nil
+        )
 
         do {
             let (result, speaker) = try await (transcriptionTask, speakerTask)
@@ -331,16 +343,56 @@ final class AssistantCoordinator: ObservableObject {
 
             // Check for wake word and extract command
             if let commandText = commandProcessor.extractCommand(from: result.text) {
+                // TODO: Consider LLM-assisted end-of-conversation detection.
+                if commandProcessor.isClosingPhrase(commandText) {
+                    print("Closing phrase detected after wake word. Ending conversation window.")
+                    conversationManager.endFollowUpWindow()
+                    state = .listening
+                    return
+                }
+
                 lastCommand = commandText
                 print("Wake word detected! Command: \"\(commandText)\"")
 
                 // Process command with LLM
                 await processCommand(commandText, speaker: speaker, source: source)
-            } else {
-                print("No wake word detected in: \"\(result.text)\"")
-                // Return to listening state
-                state = .listening
+                return
             }
+
+            // Follow-up flow (no wake word)
+            if conversationManager.isFollowUpActive() {
+                let trimmedText = result.text.trimmingCharacters(in: .whitespacesAndNewlines)
+                if trimmedText.isEmpty {
+                    state = .listening
+                    return
+                }
+
+                // TODO: Consider LLM-assisted end-of-conversation detection.
+                if commandProcessor.isClosingPhrase(trimmedText) {
+                    print("Closing phrase detected in follow-up. Ending conversation window.")
+                    conversationManager.endFollowUpWindow()
+                    state = .listening
+                    return
+                }
+
+                guard let enrolledSpeaker = speaker else {
+                    lastResponse = "Sorry, I missed that. Please repeat."
+                    print("Follow-up detected but speaker not identified. Asking to repeat.")
+                    conversationManager.extendFollowUpWindow()
+                    state = .listening
+                    return
+                }
+
+                lastCommand = trimmedText
+                print("Follow-up detected from \(enrolledSpeaker.name). Command: \"\(trimmedText)\"")
+
+                await processCommand(trimmedText, speaker: enrolledSpeaker, source: source)
+                return
+            }
+
+            print("No wake word detected in: \"\(result.text)\"")
+            // Return to listening state
+            state = .listening
 
         } catch {
             print("Processing error: \(error)")
@@ -399,6 +451,9 @@ final class AssistantCoordinator: ObservableObject {
             print("Unexpected error: \(error)")
             lastResponse = "[Error processing command]"
         }
+
+        // Reset follow-up window after a successful command cycle
+        conversationManager.extendFollowUpWindow()
 
         // Return to listening state
         state = .listening
@@ -490,10 +545,12 @@ final class AssistantCoordinator: ObservableObject {
 
     /// Execute skill calls from an action plan
     private func executeSkillCalls(_ calls: [SkillCall], userRequest: String? = nil) async throws -> String {
+        let sanitizedCalls = sanitizeWeatherCalls(calls, userRequest: userRequest)
+        let filteredCalls = filterReminderCalls(sanitizedCalls, userRequest: userRequest)
         var results: [String] = []
         var summaries: [SkillSummary] = []
 
-        for call in calls {
+        for call in filteredCalls {
             // Use new Skill type API
             guard let skillType = SkillsRegistry.skillType(withId: call.skillId) else {
                 // Don't add to summaries - skill doesn't exist
@@ -603,5 +660,128 @@ final class AssistantCoordinator: ObservableObject {
         }
 
         return results.joined(separator: " ")
+    }
+
+    // MARK: - Call Sanitization
+
+    private func sanitizeWeatherCalls(_ calls: [SkillCall], userRequest: String?) -> [SkillCall] {
+        guard let userRequest = userRequest else {
+            return calls
+        }
+
+        let normalizedRequest = normalizeText(userRequest)
+        guard requestUsesImplicitLocation(normalizedRequest) else {
+            return calls
+        }
+
+        return calls.map { call in
+            guard call.skillId == WeatherForecastSkill.id,
+                  let location = call.arguments["location"] as? String,
+                  !location.isEmpty
+            else {
+                return call
+            }
+
+            if isLocationExplicit(location, in: normalizedRequest) {
+                return call
+            }
+
+            var updatedArguments = call.arguments
+            updatedArguments.removeValue(forKey: "location")
+            return SkillCall(skillId: call.skillId, arguments: updatedArguments)
+        }
+    }
+
+    private func requestUsesImplicitLocation(_ normalizedRequest: String) -> Bool {
+        let phrases = [
+            "my weather",
+            "my location",
+            "where i am",
+            "where im",
+            "where i'm",
+            "here",
+            "my area",
+            "local weather",
+            "where i live"
+        ]
+        return phrases.contains { normalizedRequest.contains($0) }
+    }
+
+    private func isLocationExplicit(_ location: String, in normalizedRequest: String) -> Bool {
+        let locationTokens = normalizeText(location)
+            .split(separator: " ")
+            .map(String.init)
+        guard !locationTokens.isEmpty else {
+            return false
+        }
+        return locationTokens.allSatisfy { normalizedRequest.contains($0) }
+    }
+
+    private func normalizeText(_ text: String) -> String {
+        let lowered = text.lowercased()
+        let replaced = lowered.replacingOccurrences(
+            of: "[^a-z0-9\\s]",
+            with: " ",
+            options: .regularExpression
+        )
+        let collapsed = replaced.replacingOccurrences(
+            of: "\\s+",
+            with: " ",
+            options: .regularExpression
+        )
+        return collapsed.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private func filterReminderCalls(_ calls: [SkillCall], userRequest: String?) -> [SkillCall] {
+        guard let userRequest = userRequest else {
+            return dedupeCalls(calls)
+        }
+
+        let normalizedRequest = normalizeText(userRequest)
+        var filtered: [SkillCall] = []
+
+        for call in calls {
+            guard call.skillId == RemindersAddItemSkill.id else {
+                filtered.append(call)
+                continue
+            }
+
+            guard let itemName = call.arguments["itemName"] as? String else {
+                filtered.append(call)
+                continue
+            }
+
+            let itemTokens = normalizeText(itemName).split(separator: " ").map(String.init)
+            if itemTokens.isEmpty || itemTokens.allSatisfy({ normalizedRequest.contains($0) }) {
+                filtered.append(call)
+            } else {
+                print("[Skill] Skipping reminders.add_item call for item '\(itemName)' not referenced in request.")
+            }
+        }
+
+        return dedupeCalls(filtered)
+    }
+
+    private func dedupeCalls(_ calls: [SkillCall]) -> [SkillCall] {
+        var seen = Set<String>()
+        var result: [SkillCall] = []
+
+        for call in calls {
+            let argsKey: String
+            if let data = try? JSONSerialization.data(withJSONObject: call.arguments, options: [.sortedKeys]),
+               let json = String(data: data, encoding: .utf8) {
+                argsKey = json
+            } else {
+                argsKey = String(describing: call.arguments)
+            }
+            let key = "\(call.skillId)|\(argsKey)"
+            if seen.contains(key) {
+                continue
+            }
+            seen.insert(key)
+            result.append(call)
+        }
+
+        return result
     }
 }

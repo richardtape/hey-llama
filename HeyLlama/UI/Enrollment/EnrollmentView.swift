@@ -68,6 +68,7 @@ class EnrollmentState: ObservableObject {
     @Published var isRecording: Bool = false
     @Published var errorMessage: String?
     @Published var enrolledSpeaker: Speaker?
+    @Published var allowOptionalPhrases: Bool = false
 
     var currentPhrase: String {
         EnrollmentPrompts.getPhrase(at: currentPhraseIndex, forName: speakerName)
@@ -75,6 +76,11 @@ class EnrollmentState: ObservableObject {
 
     var allPhrasesRecorded: Bool {
         recordedSamples.count >= EnrollmentPrompts.count
+            || (allowOptionalPhrases == false && recordedSamples.count >= EnrollmentPrompts.minimumRequiredPhrases)
+    }
+
+    var hasMetMinimum: Bool {
+        recordedSamples.count >= EnrollmentPrompts.minimumRequiredPhrases
     }
 
     func addRecordedSample(_ sample: AudioChunk) {
@@ -90,6 +96,7 @@ class EnrollmentState: ObservableObject {
         isRecording = false
         errorMessage = nil
         enrolledSpeaker = nil
+        allowOptionalPhrases = false
     }
 }
 
@@ -146,11 +153,19 @@ struct EnrollmentRecordingView: View {
 
             // Progress dots
             HStack {
-                ForEach(0..<EnrollmentPrompts.count, id: \.self) { index in
+                let totalDots = state.allowOptionalPhrases ? EnrollmentPrompts.count : EnrollmentPrompts.minimumRequiredPhrases
+                ForEach(0..<totalDots, id: \.self) { index in
                     Circle()
                         .fill(dotColor(for: index))
                         .frame(width: 10, height: 10)
                 }
+            }
+
+            if state.hasMetMinimum {
+                Text("Minimum met. You can add a few more samples for better accuracy.")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .multilineTextAlignment(.center)
             }
 
             // Phrase to say
@@ -208,6 +223,13 @@ struct EnrollmentRecordingView: View {
                 .tint(recorder.isRecording ? .red : .accentColor)
             }
 
+            if state.hasMetMinimum && !state.allowOptionalPhrases {
+                Button("Record More Samples") {
+                    state.allowOptionalPhrases = true
+                }
+                .buttonStyle(.bordered)
+            }
+
             Button("Back") {
                 recorder.cleanup()
                 state.step = .enterName
@@ -250,7 +272,7 @@ struct EnrollmentRecordingView: View {
                     }
                     state.addRecordedSample(sample)
 
-                    // Stop recording if we just completed all phrases
+                    // Stop recording if we just completed all required phrases
                     if state.allPhrasesRecorded {
                         recorder.cleanup()
                     }

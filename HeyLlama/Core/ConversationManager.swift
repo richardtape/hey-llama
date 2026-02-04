@@ -8,10 +8,13 @@ final class ConversationManager {
 
     private let timeoutMinutes: Int
     private let maxTurns: Int
+    private let followUpWindowSeconds: Int
+    private var followUpLastActivityAt: Date?
 
-    init(timeoutMinutes: Int = 5, maxTurns: Int = 10) {
+    init(timeoutMinutes: Int = 5, maxTurns: Int = 10, followUpWindowSeconds: Int = 15) {
         self.timeoutMinutes = timeoutMinutes
         self.maxTurns = maxTurns
+        self.followUpWindowSeconds = followUpWindowSeconds
     }
 
     /// Add a new conversation turn
@@ -41,6 +44,31 @@ final class ConversationManager {
     /// Clear all conversation history
     func clearHistory() {
         turns.removeAll()
+    }
+
+    // MARK: - Follow-up window
+
+    func startFollowUpWindow() {
+        guard followUpWindowSeconds > 0 else {
+            return
+        }
+        followUpLastActivityAt = Date()
+    }
+
+    func extendFollowUpWindow() {
+        startFollowUpWindow()
+    }
+
+    func endFollowUpWindow() {
+        followUpLastActivityAt = nil
+    }
+
+    func isFollowUpActive() -> Bool {
+        guard followUpWindowSeconds > 0, let lastActivity = followUpLastActivityAt else {
+            return false
+        }
+
+        return Date().timeIntervalSince(lastActivity) <= Double(followUpWindowSeconds)
     }
 
     /// Prune turns that are older than the timeout or exceed max turns

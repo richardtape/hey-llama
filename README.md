@@ -68,3 +68,18 @@ To run locally:
 - Full spec: `docs/spec.md`
 - Developer quick start: `docs/quick-start.md`
 - Milestones: `docs/milestones/README.md`
+
+## Future
+
+
+- A memory agent
+- More 'natural' conversation after the initial wake word - not needing to use the wake word again when it makes sense
+- Add a calendar skill
+- Add the ability to message (iMessage) someone
+- Apple Music integration
+- Homekit integration
+- Run shortcuts
+- Think through running things on a cron (i.e. to be able to get a morning update ahead of time)
+- Natural voice output (the new Qwen model?)
+- Reworked 'fresh start'/onboarding guiding people through registering voices, enabling skills/permissions and choosing the AI Model
+- Permissions - should guests be able to run skills?

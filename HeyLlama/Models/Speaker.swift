@@ -12,15 +12,18 @@ nonisolated struct SpeakerMetadata: Codable, Equatable, Sendable {
     var commandCount: Int
     var lastSeenAt: Date?
     var preferredResponseMode: ResponseMode
+    var identificationThreshold: Float?
 
     nonisolated init(
         commandCount: Int = 0,
         lastSeenAt: Date? = nil,
-        preferredResponseMode: ResponseMode = .speaker
+        preferredResponseMode: ResponseMode = .speaker,
+        identificationThreshold: Float? = nil
     ) {
         self.commandCount = commandCount
         self.lastSeenAt = lastSeenAt
         self.preferredResponseMode = preferredResponseMode
+        self.identificationThreshold = identificationThreshold
     }
 }
 

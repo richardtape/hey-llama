@@ -30,7 +30,7 @@ struct RemindersAddItemSkill: Skill {
 
     static let id = "reminders.add_item"
     static let name = "Add Reminder"
-    static let skillDescription = "Add an item to a Reminders list (e.g., 'add milk to the groceries list')"
+    static let skillDescription = "Add an item to a Reminders list (e.g., 'add milk to the groceries list'). If the user asks to add multiple items, call this skill once per item."
     static let requiredPermissions: [SkillPermission] = [.reminders]
     static let includesInResponseAgent = true
 
@@ -53,8 +53,8 @@ struct RemindersAddItemSkill: Skill {
                 },
                 "itemName": {
                     "type": "string",
-                    "description": "The item/reminder to add"
-                },
+                "description": "The item/reminder to add (single item only). If the user lists multiple items, make multiple calls."
+            },
                 "notes": {
                     "type": "string",
                     "description": "Optional notes for the reminder"

@@ -52,7 +52,7 @@ actor MockSpeakerService: SpeakerServiceProtocol {
         _isModelLoaded = true
     }
 
-    func identify(_ audio: AudioChunk) async -> Speaker? {
+    func identify(_ audio: AudioChunk, thresholdOverride: Float? = nil) async -> Speaker? {
         identifyCalls.append(audio)
         return mockIdentifyResult
     }

@@ -25,8 +25,14 @@ protocol SpeakerServiceProtocol: Sendable {
     var enrolledSpeakers: [Speaker] { get async }
 
     func loadModel() async throws
-    func identify(_ audio: AudioChunk) async -> Speaker?
+    func identify(_ audio: AudioChunk, thresholdOverride: Float?) async -> Speaker?
     func enroll(name: String, samples: [AudioChunk]) async throws -> Speaker
     func remove(_ speaker: Speaker) async throws
     func updateSpeaker(_ speaker: Speaker) async throws
+}
+
+extension SpeakerServiceProtocol {
+    func identify(_ audio: AudioChunk) async -> Speaker? {
+        await identify(audio, thresholdOverride: nil)
+    }
 }

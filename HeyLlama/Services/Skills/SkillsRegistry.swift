@@ -203,6 +203,7 @@ struct SkillsRegistry {
         manifest += "Do not add extra text before or after the JSON. "
         manifest += "To use a skill, respond with JSON in the format: "
         manifest += "{\"type\":\"call_skills\",\"calls\":[{\"skillId\":\"<id>\",\"arguments\":{...}}]}\n"
+        manifest += "If a user asks to perform multiple actions or add multiple items, include multiple calls in the \"calls\" array.\n"
         manifest += "To respond with text only, use: {\"type\":\"respond\",\"text\":\"<your response>\"}\n"
         manifest += "Never put tool call JSON inside the \"text\" field.\n\n"
         manifest += "Available skills:\n\n"

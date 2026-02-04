@@ -10,7 +10,9 @@ actor SpeakerService: SpeakerServiceProtocol {
     private let identificationThreshold: Float
 
     private let modelVersion = "wespeaker-v2"
-    private let requiredSamples = 5
+    private let requiredSamples = 8
+    private let minAdaptiveThreshold: Float = 0.50
+    private let maxAdaptiveThreshold: Float = 0.80
 
     var isModelLoaded: Bool {
         diarizer != nil
@@ -59,7 +61,7 @@ actor SpeakerService: SpeakerServiceProtocol {
         print("[SpeakerService] Model loaded in \(String(format: "%.2f", loadTime))s with \(speakers.count) enrolled speaker(s)")
     }
 
-    func identify(_ audio: AudioChunk) async -> Speaker? {
+    func identify(_ audio: AudioChunk, thresholdOverride: Float? = nil) async -> Speaker? {
         guard let diarizer = diarizer else {
             print("[Identify] ERROR: model not loaded, skipping identification")
             return nil
@@ -77,24 +79,31 @@ actor SpeakerService: SpeakerServiceProtocol {
             let result = try diarizer.performCompleteDiarization(audio.samples)
             print("[Identify] Diarization found \(result.segments.count) segment(s)")
 
-            // Get the first/primary speaker from the result
-            guard let firstSegment = result.segments.first else {
+            guard !result.segments.isEmpty else {
                 print("[Identify] No speech detected in audio")
                 return nil
             }
-            print("[Identify] First segment speaker ID: \(firstSegment.speakerId)")
+            print("[Identify] First segment speaker ID: \(result.segments.first?.speakerId ?? "unknown")")
 
-            // Get the speaker embedding from FluidAudio's SpeakerManager
-            guard let fluidSpeaker = diarizer.speakerManager.getSpeaker(for: firstSegment.speakerId) else {
-                print("[Identify] ERROR: Could not retrieve speaker embedding for ID: \(firstSegment.speakerId)")
-                return nil
+            // Build an averaged embedding across all detected segments
+            var segmentEmbeddings: [SpeakerEmbedding] = []
+            for segment in result.segments {
+                guard let fluidSpeaker = diarizer.speakerManager.getSpeaker(for: segment.speakerId) else {
+                    print("[Identify] WARNING: Could not retrieve speaker embedding for ID: \(segment.speakerId)")
+                    continue
+                }
+                let embedding = SpeakerEmbedding(
+                    vector: fluidSpeaker.currentEmbedding,
+                    modelVersion: modelVersion
+                )
+                segmentEmbeddings.append(embedding)
             }
 
-            let inputEmbedding = SpeakerEmbedding(
-                vector: fluidSpeaker.currentEmbedding,
-                modelVersion: modelVersion
-            )
-            print("[Identify] Input embedding: \(inputEmbedding.vector.count) dims, first 5: \(inputEmbedding.vector.prefix(5).map { String(format: "%.4f", $0) }.joined(separator: ", "))")
+            guard let inputEmbedding = SpeakerEmbedding.average(segmentEmbeddings, modelVersion: modelVersion) else {
+                print("[Identify] ERROR: Failed to average embeddings across segments")
+                return nil
+            }
+            print("[Identify] Input embedding (avg of \(segmentEmbeddings.count) segment(s)): \(inputEmbedding.vector.count) dims, first 5: \(inputEmbedding.vector.prefix(5).map { String(format: "%.4f", $0) }.joined(separator: ", "))")
 
             // Find the best matching enrolled speaker by embedding distance
             var bestMatch: Speaker?
@@ -103,8 +112,10 @@ actor SpeakerService: SpeakerServiceProtocol {
             print("[Identify] Comparing against \(speakers.count) enrolled speaker(s):")
             for speaker in speakers {
                 let distance = inputEmbedding.distance(to: speaker.embedding)
-                let status = distance < identificationThreshold ? "MATCH" : "no match"
-                print("[Identify]   \(speaker.name): distance = \(String(format: "%.4f", distance)) (\(status), threshold: \(identificationThreshold))")
+                let baseThreshold = speaker.metadata.identificationThreshold ?? identificationThreshold
+                let speakerThreshold = max(baseThreshold, thresholdOverride ?? baseThreshold)
+                let status = distance < speakerThreshold ? "MATCH" : "no match"
+                print("[Identify]   \(speaker.name): distance = \(String(format: "%.4f", distance)) (\(status), threshold: \(String(format: "%.4f", speakerThreshold)))")
 
                 if distance < bestDistance {
                     bestDistance = distance
@@ -113,21 +124,26 @@ actor SpeakerService: SpeakerServiceProtocol {
             }
 
             // Check if the best match is within threshold
-            if let matchedSpeaker = bestMatch, bestDistance < identificationThreshold {
-                print("[Identify] SUCCESS: Identified as \(matchedSpeaker.name) (distance: \(String(format: "%.4f", bestDistance)))")
+            if let matchedSpeaker = bestMatch {
+                let matchedBaseThreshold = matchedSpeaker.metadata.identificationThreshold ?? identificationThreshold
+                let matchedThreshold = max(matchedBaseThreshold, thresholdOverride ?? matchedBaseThreshold)
+                if bestDistance < matchedThreshold {
+                    print("[Identify] SUCCESS: Identified as \(matchedSpeaker.name) (distance: \(String(format: "%.4f", bestDistance)))")
 
-                // Update metadata
-                var updatedSpeaker = matchedSpeaker
-                updatedSpeaker.metadata.lastSeenAt = Date()
-                updatedSpeaker.metadata.commandCount += 1
-                try? await updateSpeaker(updatedSpeaker)
+                    // Update metadata
+                    var updatedSpeaker = matchedSpeaker
+                    updatedSpeaker.metadata.lastSeenAt = Date()
+                    updatedSpeaker.metadata.commandCount += 1
+                    try? await updateSpeaker(updatedSpeaker)
 
-                return matchedSpeaker
-            } else {
-                let matchName = bestMatch?.name ?? "none"
-                print("[Identify] FAILED: Best match was \(matchName) at distance \(String(format: "%.4f", bestDistance)), but threshold is \(identificationThreshold)")
-                return nil
+                    return matchedSpeaker
+                }
             }
+
+            let matchName = bestMatch?.name ?? "none"
+            let matchThreshold = bestMatch?.metadata.identificationThreshold ?? identificationThreshold
+            print("[Identify] FAILED: Best match was \(matchName) at distance \(String(format: "%.4f", bestDistance)), but threshold is \(String(format: "%.4f", matchThreshold))")
+            return nil
         } catch {
             print("Speaker identification failed: \(error)")
             return nil
@@ -199,14 +215,18 @@ actor SpeakerService: SpeakerServiceProtocol {
 
         // Show distance from each sample to the average
         print("[Enrollment] Distance from each sample to averaged embedding:")
-        for (i, emb) in embeddings.enumerated() {
-            let dist = emb.distance(to: averagedEmbedding)
+        let distancesToAverage = embeddings.map { $0.distance(to: averagedEmbedding) }
+        for (i, dist) in distancesToAverage.enumerated() {
             print("[Enrollment]   Sample \(i+1): \(String(format: "%.4f", dist))")
         }
 
+        let adaptiveThreshold = computeAdaptiveThreshold(from: distancesToAverage)
+        print("[Enrollment] Adaptive threshold: \(String(format: "%.4f", adaptiveThreshold))")
+
         let speaker = Speaker(
             name: name,
-            embedding: averagedEmbedding
+            embedding: averagedEmbedding,
+            metadata: SpeakerMetadata(identificationThreshold: adaptiveThreshold)
         )
         print("[Enrollment] Created speaker: \(speaker.name) with ID: \(speaker.id)")
 
@@ -226,6 +246,23 @@ actor SpeakerService: SpeakerServiceProtocol {
         print("[Enrollment] Total enrolled speakers: \(speakers.count)")
         print("[Enrollment] Saved to: \(store.speakersFileURL.path)")
         return speaker
+    }
+
+    private func computeAdaptiveThreshold(from distances: [Float]) -> Float {
+        guard !distances.isEmpty else {
+            return identificationThreshold
+        }
+
+        let mean = distances.reduce(0, +) / Float(distances.count)
+        let variance = distances.reduce(0) { partial, value in
+            let diff = value - mean
+            return partial + diff * diff
+        } / Float(distances.count)
+        let stdDev = sqrt(variance)
+        let rawThreshold = mean + (2 * stdDev)
+
+        let clamped = max(minAdaptiveThreshold, min(maxAdaptiveThreshold, rawThreshold))
+        return clamped.isFinite ? clamped : identificationThreshold
     }
 
     func remove(_ speaker: Speaker) async throws {

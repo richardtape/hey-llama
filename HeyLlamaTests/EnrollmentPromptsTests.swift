@@ -4,7 +4,7 @@ import XCTest
 final class EnrollmentPromptsTests: XCTestCase {
 
     func testPromptsCount() {
-        XCTAssertEqual(EnrollmentPrompts.phrases.count, 5)
+        XCTAssertEqual(EnrollmentPrompts.phrases.count, 12)
     }
 
     func testPromptsContainWakeWord() {
@@ -28,8 +28,8 @@ final class EnrollmentPromptsTests: XCTestCase {
 
     func testGetPhraseIndexWrapping() {
         let phrase = EnrollmentPrompts.getPhrase(at: 10, forName: "Carol")
-        // Should wrap around - index 10 % 5 = 0
-        XCTAssertEqual(phrase, EnrollmentPrompts.getPhrase(at: 0, forName: "Carol"))
+        // Should wrap around - index 10 % 12 = 10
+        XCTAssertEqual(phrase, EnrollmentPrompts.getPhrase(at: 10, forName: "Carol"))
     }
 
     func testAllPhrasesAreNonEmpty() {

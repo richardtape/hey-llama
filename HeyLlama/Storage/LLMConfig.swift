@@ -63,6 +63,8 @@ struct LLMConfig: Equatable, Sendable {
     var openAICompatible: OpenAICompatibleConfig
     var conversationTimeoutMinutes: Int
     var maxConversationTurns: Int
+    var followUpWindowSeconds: Int
+    var conversationClosingPhrases: [String]
 
     /// Default system prompt for the assistant
     static var defaultSystemPrompt: String { llmDefaultSystemPrompt }
@@ -73,7 +75,23 @@ struct LLMConfig: Equatable, Sendable {
         appleIntelligence: AppleIntelligenceConfig = AppleIntelligenceConfig(),
         openAICompatible: OpenAICompatibleConfig = OpenAICompatibleConfig(),
         conversationTimeoutMinutes: Int = 5,
-        maxConversationTurns: Int = 10
+        maxConversationTurns: Int = 10,
+        followUpWindowSeconds: Int = 15,
+        conversationClosingPhrases: [String] = [
+            "thanks",
+            "thank you",
+            "thanks llama",
+            "thank you llama",
+            "that's all",
+            "that is all",
+            "that's it",
+            "that is it",
+            "goodbye",
+            "bye",
+            "stop",
+            "stop listening",
+            "cancel"
+        ]
     ) {
         self.provider = provider
         self.systemPrompt = systemPrompt ?? llmDefaultSystemPrompt
@@ -81,6 +99,8 @@ struct LLMConfig: Equatable, Sendable {
         self.openAICompatible = openAICompatible
         self.conversationTimeoutMinutes = conversationTimeoutMinutes
         self.maxConversationTurns = maxConversationTurns
+        self.followUpWindowSeconds = followUpWindowSeconds
+        self.conversationClosingPhrases = conversationClosingPhrases
     }
 
     nonisolated static var `default`: LLMConfig {
@@ -93,6 +113,7 @@ extension LLMConfig: Codable {
     private enum CodingKeys: String, CodingKey {
         case provider, systemPrompt, appleIntelligence, openAICompatible
         case conversationTimeoutMinutes, maxConversationTurns
+        case followUpWindowSeconds, conversationClosingPhrases
     }
 
     nonisolated init(from decoder: Decoder) throws {
@@ -103,6 +124,22 @@ extension LLMConfig: Codable {
         openAICompatible = try container.decode(OpenAICompatibleConfig.self, forKey: .openAICompatible)
         conversationTimeoutMinutes = try container.decode(Int.self, forKey: .conversationTimeoutMinutes)
         maxConversationTurns = try container.decode(Int.self, forKey: .maxConversationTurns)
+        followUpWindowSeconds = try container.decodeIfPresent(Int.self, forKey: .followUpWindowSeconds) ?? 15
+        conversationClosingPhrases = try container.decodeIfPresent([String].self, forKey: .conversationClosingPhrases) ?? [
+            "thanks",
+            "thank you",
+            "thanks llama",
+            "thank you llama",
+            "that's all",
+            "that is all",
+            "that's it",
+            "that is it",
+            "goodbye",
+            "bye",
+            "stop",
+            "stop listening",
+            "cancel"
+        ]
     }
 
     nonisolated func encode(to encoder: Encoder) throws {
@@ -113,5 +150,7 @@ extension LLMConfig: Codable {
         try container.encode(openAICompatible, forKey: .openAICompatible)
         try container.encode(conversationTimeoutMinutes, forKey: .conversationTimeoutMinutes)
         try container.encode(maxConversationTurns, forKey: .maxConversationTurns)
+        try container.encode(followUpWindowSeconds, forKey: .followUpWindowSeconds)
+        try container.encode(conversationClosingPhrases, forKey: .conversationClosingPhrases)
     }
 }
