@@ -6,7 +6,7 @@ final class SkillsRegistryTests: XCTestCase {
     // MARK: - New Skill Type API Tests
 
     func testRegistryHasAllSkillTypes() {
-        XCTAssertEqual(SkillsRegistry.allSkillTypes.count, 5)
+        XCTAssertEqual(SkillsRegistry.allSkillTypes.count, 9)
     }
 
     func testGetSkillTypeById() {
@@ -97,5 +97,9 @@ final class SkillsRegistryTests: XCTestCase {
         XCTAssertTrue(RemindersRemoveItemSkill.includesInResponseAgent)
         XCTAssertTrue(RemindersCompleteItemSkill.includesInResponseAgent)
         XCTAssertTrue(RemindersReadItemsSkill.includesInResponseAgent)
+        XCTAssertTrue(AppleMusicPlaySkill.includesInResponseAgent)
+        XCTAssertTrue(AppleMusicAddToPlaylistSkill.includesInResponseAgent)
+        XCTAssertTrue(AppleMusicNowPlayingSkill.includesInResponseAgent)
+        XCTAssertTrue(AppleMusicControlSkill.includesInResponseAgent)
     }
 }

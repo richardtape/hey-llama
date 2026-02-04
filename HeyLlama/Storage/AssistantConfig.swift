@@ -8,6 +8,7 @@ struct AssistantConfig: Equatable, Sendable {
     var apiEnabled: Bool
     var llm: LLMConfig
     var skills: SkillsConfig
+    var audio: AudioConfig
 
     nonisolated init(
         wakePhrase: String = "hey llama",
@@ -15,7 +16,8 @@ struct AssistantConfig: Equatable, Sendable {
         apiPort: UInt16 = 8765,
         apiEnabled: Bool = true,
         llm: LLMConfig = .default,
-        skills: SkillsConfig = SkillsConfig()
+        skills: SkillsConfig = SkillsConfig(),
+        audio: AudioConfig = AudioConfig()
     ) {
         self.wakePhrase = wakePhrase
         self.wakeWordSensitivity = wakeWordSensitivity
@@ -23,6 +25,7 @@ struct AssistantConfig: Equatable, Sendable {
         self.apiEnabled = apiEnabled
         self.llm = llm
         self.skills = skills
+        self.audio = audio
     }
 
     nonisolated static var `default`: AssistantConfig {
@@ -33,7 +36,7 @@ struct AssistantConfig: Equatable, Sendable {
 // MARK: - Codable conformance with nonisolated methods
 extension AssistantConfig: Codable {
     private enum CodingKeys: String, CodingKey {
-        case wakePhrase, wakeWordSensitivity, apiPort, apiEnabled, llm, skills
+        case wakePhrase, wakeWordSensitivity, apiPort, apiEnabled, llm, skills, audio
     }
 
     nonisolated init(from decoder: Decoder) throws {
@@ -44,6 +47,7 @@ extension AssistantConfig: Codable {
         apiEnabled = try container.decode(Bool.self, forKey: .apiEnabled)
         llm = try container.decode(LLMConfig.self, forKey: .llm)
         skills = try container.decodeIfPresent(SkillsConfig.self, forKey: .skills) ?? SkillsConfig()
+        audio = try container.decodeIfPresent(AudioConfig.self, forKey: .audio) ?? AudioConfig()
     }
 
     nonisolated func encode(to encoder: Encoder) throws {
@@ -54,5 +58,6 @@ extension AssistantConfig: Codable {
         try container.encode(apiEnabled, forKey: .apiEnabled)
         try container.encode(llm, forKey: .llm)
         try container.encode(skills, forKey: .skills)
+        try container.encode(audio, forKey: .audio)
     }
 }

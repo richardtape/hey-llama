@@ -34,6 +34,8 @@ final class ConfigStoreTests: XCTestCase {
         config.llm.provider = .openAICompatible
         config.llm.openAICompatible.model = "llama3.2"
         config.llm.openAICompatible.baseURL = "http://localhost:11434/v1"
+        config.audio.preferredOutputDeviceUID = "test-device"
+        config.audio.autoSwitchOutputForMusic = false
 
         try configStore.saveConfig(config)
         let loaded = configStore.loadConfig()
@@ -41,6 +43,8 @@ final class ConfigStoreTests: XCTestCase {
         XCTAssertEqual(loaded.wakePhrase, "ok computer")
         XCTAssertEqual(loaded.llm.provider, .openAICompatible)
         XCTAssertEqual(loaded.llm.openAICompatible.model, "llama3.2")
+        XCTAssertEqual(loaded.audio.preferredOutputDeviceUID, "test-device")
+        XCTAssertEqual(loaded.audio.autoSwitchOutputForMusic, false)
     }
 
     func testConfigFileLocation() {

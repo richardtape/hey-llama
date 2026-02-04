@@ -22,11 +22,13 @@ final class SkillProtocolTests: XCTestCase {
     func testSkillPermissionHasDisplayName() {
         XCTAssertEqual(SkillPermission.reminders.displayName, "Reminders")
         XCTAssertEqual(SkillPermission.location.displayName, "Location")
+        XCTAssertEqual(SkillPermission.music.displayName, "Music")
     }
 
     func testSkillPermissionHasDescription() {
         XCTAssertFalse(SkillPermission.reminders.description.isEmpty)
         XCTAssertFalse(SkillPermission.location.description.isEmpty)
+        XCTAssertFalse(SkillPermission.music.description.isEmpty)
     }
 
     func testSkillContextDefaults() {

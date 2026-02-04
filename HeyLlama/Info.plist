@@ -28,9 +28,11 @@
     <string>Hey Llama needs your location to provide accurate weather forecasts.</string>
     <key>NSLocationWhenInUseUsageDescription</key>
     <string>Hey Llama needs your location to provide accurate weather forecasts.</string>
-    <key>NSRemindersFullAccessUsageDescription</key>
-    <string>Hey Llama needs access to Reminders to add items to your lists.</string>
-    <key>NSPrincipalClass</key>
-    <string>NSApplication</string>
+	<key>NSRemindersFullAccessUsageDescription</key>
+	<string>Hey Llama needs access to Reminders to add items to your lists.</string>
+	<key>NSAppleMusicUsageDescription</key>
+	<string>Hey Llama needs access to Apple Music to play music and manage your playlists.</string>
+	<key>NSPrincipalClass</key>
+	<string>NSApplication</string>
 </dict>
 </plist>

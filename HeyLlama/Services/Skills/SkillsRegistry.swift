@@ -7,6 +7,10 @@ enum RegisteredSkill: CaseIterable, Sendable {
     case remindersRemoveItem
     case remindersCompleteItem
     case remindersReadItems
+    case musicPlay
+    case musicAddToPlaylist
+    case musicNowPlaying
+    case musicControl
 
     var id: String {
         switch self {
@@ -15,6 +19,10 @@ enum RegisteredSkill: CaseIterable, Sendable {
         case .remindersRemoveItem: return "reminders.remove_item"
         case .remindersCompleteItem: return "reminders.complete_item"
         case .remindersReadItems: return "reminders.read_items"
+        case .musicPlay: return "music.play"
+        case .musicAddToPlaylist: return "music.add_to_playlist"
+        case .musicNowPlaying: return "music.now_playing"
+        case .musicControl: return "music.control"
         }
     }
 
@@ -25,6 +33,10 @@ enum RegisteredSkill: CaseIterable, Sendable {
         case .remindersRemoveItem: return "Remove Reminder"
         case .remindersCompleteItem: return "Complete Reminder"
         case .remindersReadItems: return "Read Reminders"
+        case .musicPlay: return "Play Music"
+        case .musicAddToPlaylist: return "Add Track to Playlist"
+        case .musicNowPlaying: return "Now Playing"
+        case .musicControl: return "Music Controls"
         }
     }
 
@@ -40,6 +52,14 @@ enum RegisteredSkill: CaseIterable, Sendable {
             return "Mark an item as complete in a Reminders list (e.g., 'mark milk complete in the groceries list')"
         case .remindersReadItems:
             return "Read items from a Reminders list (e.g., 'what's on my groceries list')"
+        case .musicPlay:
+            return "Play music by song, artist, album, or playlist"
+        case .musicAddToPlaylist:
+            return "Add a song to an Apple Music playlist"
+        case .musicNowPlaying:
+            return "Identify the currently playing Apple Music track"
+        case .musicControl:
+            return "Control Apple Music playback (pause, resume, next, previous, shuffle, repeat)"
         }
     }
 
@@ -50,6 +70,10 @@ enum RegisteredSkill: CaseIterable, Sendable {
         case .remindersRemoveItem: return [.reminders]
         case .remindersCompleteItem: return [.reminders]
         case .remindersReadItems: return [.reminders]
+        case .musicPlay: return [.music]
+        case .musicAddToPlaylist: return [.music]
+        case .musicNowPlaying: return [.music]
+        case .musicControl: return [.music]
         }
     }
 
@@ -60,6 +84,10 @@ enum RegisteredSkill: CaseIterable, Sendable {
         case .remindersRemoveItem: return true
         case .remindersCompleteItem: return true
         case .remindersReadItems: return true
+        case .musicPlay: return true
+        case .musicAddToPlaylist: return true
+        case .musicNowPlaying: return true
+        case .musicControl: return true
         }
     }
 
@@ -163,6 +191,14 @@ enum RegisteredSkill: CaseIterable, Sendable {
                 "required": ["listName"]
             }
             """
+        case .musicPlay:
+            return AppleMusicPlaySkill.argumentsJSONSchema
+        case .musicAddToPlaylist:
+            return AppleMusicAddToPlaylistSkill.argumentsJSONSchema
+        case .musicNowPlaying:
+            return AppleMusicNowPlayingSkill.argumentsJSONSchema
+        case .musicControl:
+            return AppleMusicControlSkill.argumentsJSONSchema
         }
     }
 
@@ -178,6 +214,14 @@ enum RegisteredSkill: CaseIterable, Sendable {
             return try await RemindersCompleteItemSkill().run(argumentsJSON: argumentsJSON, context: context)
         case .remindersReadItems:
             return try await RemindersReadItemsSkill().run(argumentsJSON: argumentsJSON, context: context)
+        case .musicPlay:
+            return try await AppleMusicPlaySkill().run(argumentsJSON: argumentsJSON, context: context)
+        case .musicAddToPlaylist:
+            return try await AppleMusicAddToPlaylistSkill().run(argumentsJSON: argumentsJSON, context: context)
+        case .musicNowPlaying:
+            return try await AppleMusicNowPlayingSkill().run(argumentsJSON: argumentsJSON, context: context)
+        case .musicControl:
+            return try await AppleMusicControlSkill().run(argumentsJSON: argumentsJSON, context: context)
         }
     }
 }
@@ -208,6 +252,10 @@ struct SkillsRegistry {
         RemindersRemoveItemSkill.self,
         RemindersCompleteItemSkill.self,
         RemindersReadItemsSkill.self,
+        AppleMusicPlaySkill.self,
+        AppleMusicAddToPlaylistSkill.self,
+        AppleMusicNowPlayingSkill.self,
+        AppleMusicControlSkill.self,
         // Future skills:
         // CalendarSkill.self,
         // MessagesSkill.self,
@@ -360,6 +408,34 @@ struct SkillsRegistry {
                 from: argumentsJSON.data(using: .utf8)!
             )
             return try await RemindersReadItemsSkill().execute(arguments: args, context: context)
+
+        case is AppleMusicPlaySkill.Type:
+            let args = try JSONDecoder().decode(
+                AppleMusicPlayArguments.self,
+                from: argumentsJSON.data(using: .utf8)!
+            )
+            return try await AppleMusicPlaySkill().execute(arguments: args, context: context)
+
+        case is AppleMusicAddToPlaylistSkill.Type:
+            let args = try JSONDecoder().decode(
+                AppleMusicAddToPlaylistArguments.self,
+                from: argumentsJSON.data(using: .utf8)!
+            )
+            return try await AppleMusicAddToPlaylistSkill().execute(arguments: args, context: context)
+
+        case is AppleMusicNowPlayingSkill.Type:
+            let args = try JSONDecoder().decode(
+                AppleMusicNowPlayingArguments.self,
+                from: argumentsJSON.data(using: .utf8)!
+            )
+            return try await AppleMusicNowPlayingSkill().execute(arguments: args, context: context)
+
+        case is AppleMusicControlSkill.Type:
+            let args = try JSONDecoder().decode(
+                AppleMusicControlArguments.self,
+                from: argumentsJSON.data(using: .utf8)!
+            )
+            return try await AppleMusicControlSkill().execute(arguments: args, context: context)
 
         default:
             throw SkillError.skillNotFound(skillId)

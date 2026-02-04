@@ -53,12 +53,16 @@ final class ToolsRegistryTests: XCTestCase {
     func testRegistryHasBuiltInSkills() {
         let registry = SkillsRegistry()
         let allSkills = registry.allSkills
-        XCTAssertEqual(allSkills.count, 5)
+        XCTAssertEqual(allSkills.count, 9)
         XCTAssertTrue(allSkills.contains(.weatherForecast))
         XCTAssertTrue(allSkills.contains(.remindersAddItem))
         XCTAssertTrue(allSkills.contains(.remindersRemoveItem))
         XCTAssertTrue(allSkills.contains(.remindersCompleteItem))
         XCTAssertTrue(allSkills.contains(.remindersReadItems))
+        XCTAssertTrue(allSkills.contains(.musicPlay))
+        XCTAssertTrue(allSkills.contains(.musicAddToPlaylist))
+        XCTAssertTrue(allSkills.contains(.musicNowPlaying))
+        XCTAssertTrue(allSkills.contains(.musicControl))
     }
 
     func testGetSkillById() {

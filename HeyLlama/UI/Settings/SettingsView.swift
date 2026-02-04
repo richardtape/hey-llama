@@ -18,7 +18,7 @@ struct SettingsView: View {
                     Label("Skills", systemImage: "wand.and.stars")
                 }
 
-            AudioSettingsPlaceholder()
+            AudioSettingsView()
                 .tabItem {
                     Label("Audio", systemImage: "waveform")
                 }
@@ -42,19 +42,6 @@ struct GeneralSettingsView: View {
         VStack {
             Spacer()
             Text("Wake phrase, launch at login, and other general settings will be added in Milestone 7.")
-                .foregroundColor(.secondary)
-                .multilineTextAlignment(.center)
-                .padding()
-            Spacer()
-        }
-    }
-}
-
-struct AudioSettingsPlaceholder: View {
-    var body: some View {
-        VStack {
-            Spacer()
-            Text("Audio device selection, silence threshold, and microphone testing will be added in Milestone 7.")
                 .foregroundColor(.secondary)
                 .multilineTextAlignment(.center)
                 .padding()

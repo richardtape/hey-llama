@@ -14,6 +14,10 @@ actor SkillPermissionManager {
             let status = await MainActor.run { Permissions.checkLocationStatus() }
             print("[Permissions] \(permission.rawValue) status: \(status)")
             return status
+        case .music:
+            let status = Permissions.checkMusicStatus()
+            print("[Permissions] \(permission.rawValue) status: \(status)")
+            return status
         }
     }
 
@@ -26,6 +30,10 @@ actor SkillPermissionManager {
             return granted
         case .location:
             let granted = await Permissions.requestLocationAccess()
+            print("[Permissions] \(permission.rawValue) request result: \(granted)")
+            return granted
+        case .music:
+            let granted = await Permissions.requestMusicAccess()
             print("[Permissions] \(permission.rawValue) request result: \(granted)")
             return granted
         }

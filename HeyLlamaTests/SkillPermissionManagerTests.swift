@@ -19,6 +19,14 @@ final class SkillPermissionManagerTests: XCTestCase {
         XCTAssertTrue([.granted, .denied, .undetermined].contains(status))
     }
 
+    func testCheckMusicPermissionStatus() async {
+        let manager = SkillPermissionManager()
+        let status = await manager.checkPermissionStatus(.music)
+
+        // Status should be one of the valid values
+        XCTAssertTrue([.granted, .denied, .undetermined].contains(status))
+    }
+
     func testCheckAllPermissionsForSkillWithNoPermissions() async {
         let manager = SkillPermissionManager()
         // Weather skill requires location, reminders requires reminders

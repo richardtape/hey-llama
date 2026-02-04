@@ -3,6 +3,7 @@ import AVFoundation
 
 class AppDelegate: NSObject, NSApplicationDelegate {
     private var appState: AppState?
+    private var hasInitialized = false
 
     /// Check if we're running in a test environment
     private var isRunningTests: Bool {
@@ -25,6 +26,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             print("Running in test environment - skipping initialization")
             return
         }
+
+        guard !hasInitialized else {
+            return
+        }
+        hasInitialized = true
 
         // Check if onboarding is needed
         if state.requiresOnboarding {

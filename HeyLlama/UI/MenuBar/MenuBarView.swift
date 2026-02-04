@@ -14,6 +14,21 @@ struct MenuBarView: View {
 
             Divider()
 
+            HStack {
+                Text("Pause Listening")
+                Spacer()
+                Toggle("", isOn: Binding(
+                    get: { appState.isListeningPaused },
+                    set: { newValue in
+                        appState.toggleListeningPaused(newValue)
+                    }
+                ))
+                .toggleStyle(.switch)
+                .labelsHidden()
+            }
+
+            Divider()
+
             // Status section
             HStack {
                 Image(systemName: appState.statusIcon)
@@ -95,6 +110,40 @@ struct MenuBarView: View {
 
             Divider()
 
+            if appState.isMusicControlsVisible {
+                HStack(spacing: 8) {
+                    Text(nowPlayingText)
+                        .font(.caption)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+
+                    Spacer()
+
+                    Button {
+                        appState.playPreviousTrack()
+                    } label: {
+                        Image(systemName: "backward.fill")
+                    }
+                    .buttonStyle(.plain)
+
+                    Button {
+                        appState.playPauseMusic()
+                    } label: {
+                        Image(systemName: appState.musicIsPlaying ? "pause.fill" : "play.fill")
+                    }
+                    .buttonStyle(.plain)
+
+                    Button {
+                        appState.playNextTrack()
+                    } label: {
+                        Image(systemName: "forward.fill")
+                    }
+                    .buttonStyle(.plain)
+                }
+
+                Divider()
+            }
+
             // Actions
             if appState.requiresOnboarding {
                 Button("Complete Setup...") {
@@ -150,6 +199,18 @@ struct MenuBarView: View {
             return .red
         }
         return .primary
+    }
+
+    private var nowPlayingText: String {
+        let title = appState.musicNowPlayingTitle
+        let artist = appState.musicNowPlayingArtist
+        if title.isEmpty {
+            return "Nothing playing"
+        }
+        if artist.isEmpty {
+            return title
+        }
+        return "\(title) — \(artist)"
     }
 }
 

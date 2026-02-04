@@ -257,6 +257,14 @@ actor AppleIntelligenceProvider: LLMServiceProtocol {
             return RemindersCompleteItemTool(recorder: recorder)
         case is RemindersReadItemsSkill.Type:
             return RemindersReadItemsTool(recorder: recorder)
+        case is AppleMusicPlaySkill.Type:
+            return AppleMusicPlayTool(recorder: recorder)
+        case is AppleMusicAddToPlaylistSkill.Type:
+            return AppleMusicAddToPlaylistTool(recorder: recorder)
+        case is AppleMusicNowPlayingSkill.Type:
+            return AppleMusicNowPlayingTool(recorder: recorder)
+        case is AppleMusicControlSkill.Type:
+            return AppleMusicControlTool(recorder: recorder)
         // Future skills:
         // case is CalendarSkill.Type:
         //     return CalendarTool(recorder: recorder)
@@ -412,6 +420,101 @@ actor AppleIntelligenceProvider: LLMServiceProtocol {
             ]
             if let status = arguments.status, !status.isEmpty {
                 args["status"] = status
+            }
+            await recorder.record(ToolInvocation(skillId: name, arguments: args))
+            return "OK"
+        }
+    }
+
+    /// Apple Music play tool for Apple's Foundation Models.
+    @available(macOS 26.0, iOS 26.0, *)
+    struct AppleMusicPlayTool: Tool {
+        let name: String = AppleMusicPlaySkill.id
+        let description: String = AppleMusicPlaySkill.skillDescription
+        let recorder: ToolInvocationRecorder
+
+        @Generable
+        struct Arguments: ConvertibleFromGeneratedContent {
+            var query: String
+            var entityType: String
+            var source: String?
+        }
+
+        func call(arguments: Arguments) async throws -> String {
+            var args: [String: Any] = [
+                "query": arguments.query,
+                "entityType": arguments.entityType
+            ]
+            if let source = arguments.source, !source.isEmpty {
+                args["source"] = source
+            }
+            await recorder.record(ToolInvocation(skillId: name, arguments: args))
+            return "OK"
+        }
+    }
+
+    /// Apple Music add-to-playlist tool for Apple's Foundation Models.
+    @available(macOS 26.0, iOS 26.0, *)
+    struct AppleMusicAddToPlaylistTool: Tool {
+        let name: String = AppleMusicAddToPlaylistSkill.id
+        let description: String = AppleMusicAddToPlaylistSkill.skillDescription
+        let recorder: ToolInvocationRecorder
+
+        @Generable
+        struct Arguments: ConvertibleFromGeneratedContent {
+            var trackQuery: String
+            var playlistName: String
+            var source: String?
+        }
+
+        func call(arguments: Arguments) async throws -> String {
+            var args: [String: Any] = [
+                "trackQuery": arguments.trackQuery,
+                "playlistName": arguments.playlistName
+            ]
+            if let source = arguments.source, !source.isEmpty {
+                args["source"] = source
+            }
+            await recorder.record(ToolInvocation(skillId: name, arguments: args))
+            return "OK"
+        }
+    }
+
+    /// Apple Music now playing tool for Apple's Foundation Models.
+    @available(macOS 26.0, iOS 26.0, *)
+    struct AppleMusicNowPlayingTool: Tool {
+        let name: String = AppleMusicNowPlayingSkill.id
+        let description: String = AppleMusicNowPlayingSkill.skillDescription
+        let recorder: ToolInvocationRecorder
+
+        @Generable
+        struct Arguments: ConvertibleFromGeneratedContent {}
+
+        func call(arguments: Arguments) async throws -> String {
+            await recorder.record(ToolInvocation(skillId: name, arguments: [:]))
+            return "OK"
+        }
+    }
+
+    /// Apple Music control tool for Apple's Foundation Models.
+    @available(macOS 26.0, iOS 26.0, *)
+    struct AppleMusicControlTool: Tool {
+        let name: String = AppleMusicControlSkill.id
+        let description: String = AppleMusicControlSkill.skillDescription
+        let recorder: ToolInvocationRecorder
+
+        @Generable
+        struct Arguments: ConvertibleFromGeneratedContent {
+            var action: String
+            var mode: String?
+        }
+
+        func call(arguments: Arguments) async throws -> String {
+            var args: [String: Any] = [
+                "action": arguments.action
+            ]
+            if let mode = arguments.mode, !mode.isEmpty {
+                args["mode"] = mode
             }
             await recorder.record(ToolInvocation(skillId: name, arguments: args))
             return "OK"

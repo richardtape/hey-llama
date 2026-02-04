@@ -9,6 +9,7 @@ final class AssistantConfigTests: XCTestCase {
         XCTAssertEqual(config.wakeWordSensitivity, 0.5)
         XCTAssertEqual(config.apiPort, 8765)
         XCTAssertTrue(config.apiEnabled)
+        XCTAssertTrue(config.audio.autoSwitchOutputForMusic)
     }
 
     func testAssistantConfigHasLLMConfig() {
@@ -21,6 +22,8 @@ final class AssistantConfigTests: XCTestCase {
         config.wakePhrase = "ok computer"
         config.llm.provider = .openAICompatible
         config.llm.openAICompatible.model = "llama3.2"
+        config.audio.preferredOutputDeviceUID = "test-output"
+        config.audio.autoSwitchOutputForMusic = false
 
         let encoder = JSONEncoder()
         encoder.outputFormatting = .prettyPrinted
@@ -32,6 +35,8 @@ final class AssistantConfigTests: XCTestCase {
         XCTAssertEqual(decoded.wakePhrase, "ok computer")
         XCTAssertEqual(decoded.llm.provider, .openAICompatible)
         XCTAssertEqual(decoded.llm.openAICompatible.model, "llama3.2")
+        XCTAssertEqual(decoded.audio.preferredOutputDeviceUID, "test-output")
+        XCTAssertEqual(decoded.audio.autoSwitchOutputForMusic, false)
     }
 
     func testAssistantConfigEquatable() {

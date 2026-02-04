@@ -5,6 +5,7 @@ import Combine
 final class AssistantCoordinator: ObservableObject {
     @Published private(set) var state: AssistantState = .idle
     @Published private(set) var isListening: Bool = false
+    @Published private(set) var isListeningPaused: Bool = false
     @Published private(set) var audioLevel: Float = 0
     @Published private(set) var lastTranscription: String?
     @Published private(set) var lastCommand: String?
@@ -14,6 +15,8 @@ final class AssistantCoordinator: ObservableObject {
     @Published private(set) var requiresOnboarding: Bool = true
     @Published private(set) var enrolledSpeakers: [Speaker] = []
     @Published private(set) var llmConfigured: Bool = false
+    @Published private(set) var musicPermissionStatus: Permissions.PermissionStatus = Permissions.checkMusicStatus()
+    @Published private(set) var isMusicSkillEnabled: Bool = false
 
     // Skills support
     private(set) var skillsRegistry: SkillsRegistry
@@ -33,6 +36,7 @@ final class AssistantCoordinator: ObservableObject {
     private var useInjectedLLMService: Bool = false
 
     private var config: AssistantConfig
+    private let musicPlaybackController: MusicPlaybackController
 
     init(
         sttService: (any STTServiceProtocol)? = nil,
@@ -77,6 +81,7 @@ final class AssistantCoordinator: ObservableObject {
 
         // Check if onboarding is required
         self.requiresOnboarding = !speakerStore.hasSpeakers()
+        self.musicPlaybackController = MusicPlaybackController.shared
 
         setupBindings()
     }
@@ -154,6 +159,7 @@ final class AssistantCoordinator: ObservableObject {
 
         audioEngine.start()
         isListening = true
+        isListeningPaused = false
         state = .listening
     }
 
@@ -163,6 +169,7 @@ final class AssistantCoordinator: ObservableObject {
         let enabledSkills = skillsRegistry.enabledSkills
         let enabledSkillIds = enabledSkills.map { $0.id }
         print("[Startup] Enabled skills: \(enabledSkillIds)")
+        updateMusicSkillEnabled()
 
         for skill in enabledSkills {
             let requiredPermissions = skill.requiredPermissions
@@ -178,10 +185,16 @@ final class AssistantCoordinator: ObservableObject {
             for permission in requiredPermissions {
                 let status = await permissionManager.checkPermissionStatus(permission)
                 print("[Startup] Permission \(permission.rawValue) status: \(status)")
+                if permission == .music {
+                    musicPermissionStatus = status
+                }
 
                 if status == .undetermined {
                     let granted = await permissionManager.requestPermission(permission)
                     print("[Startup] Permission \(permission.rawValue) request result: \(granted)")
+                    if permission == .music {
+                        musicPermissionStatus = granted ? .granted : .denied
+                    }
                 }
             }
         }
@@ -190,6 +203,7 @@ final class AssistantCoordinator: ObservableObject {
     func shutdown() {
         audioEngine.stop()
         isListening = false
+        isListeningPaused = false
         state = .idle
         vadService.reset()
         audioBuffer.clear()
@@ -220,6 +234,7 @@ final class AssistantCoordinator: ObservableObject {
 
         // Update skills configuration
         skillsRegistry.updateConfig(config.skills)
+        updateMusicSkillEnabled()
 
         // Update LLM configured status
         llmConfigured = await llmService.isConfigured
@@ -246,6 +261,7 @@ final class AssistantCoordinator: ObservableObject {
         )
 
         skillsRegistry.updateConfig(config.skills)
+        updateMusicSkillEnabled()
         llmConfigured = await llmService.isConfigured
         print("Config refreshed. LLM configured: \(llmConfigured)")
     }
@@ -253,6 +269,27 @@ final class AssistantCoordinator: ObservableObject {
     /// Update skills configuration
     func updateSkillsConfig(_ newConfig: SkillsConfig) {
         skillsRegistry.updateConfig(newConfig)
+        updateMusicSkillEnabled()
+    }
+
+    // MARK: - Listening Control
+
+    func pauseListening(reason: ListeningPauseReason) {
+        guard !isListeningPaused else { return }
+        audioEngine.stop()
+        isListening = false
+        isListeningPaused = true
+        state = .pausedListening
+        print("[Listening] Paused (\(reason.rawValue))")
+    }
+
+    func resumeListening(reason: ListeningPauseReason) {
+        guard isListeningPaused else { return }
+        audioEngine.start()
+        isListening = true
+        isListeningPaused = false
+        state = .listening
+        print("[Listening] Resumed (\(reason.rawValue))")
     }
 
     /// Clear conversation history (e.g., for "new conversation" command)
@@ -649,6 +686,10 @@ final class AssistantCoordinator: ObservableObject {
                 if let data = result.data {
                     print("[Skill] \(call.skillId) result data: \(data)")
                 }
+                if let data = result.data,
+                   let listeningAction = data["listeningAction"] as? String {
+                    handleListeningAction(listeningAction)
+                }
                 if let data = result.data {
                     let pending = PendingConfirmation.fromSkillResultData(
                         data,
@@ -721,6 +762,29 @@ final class AssistantCoordinator: ObservableObject {
         }
 
         return results.joined(separator: " ")
+    }
+
+    // MARK: - Helpers
+
+    private func updateMusicSkillEnabled() {
+        let ids = [
+            AppleMusicPlaySkill.id,
+            AppleMusicAddToPlaylistSkill.id,
+            AppleMusicNowPlayingSkill.id,
+            AppleMusicControlSkill.id
+        ]
+        isMusicSkillEnabled = ids.contains { skillsRegistry.isSkillEnabled($0) }
+    }
+
+    private func handleListeningAction(_ action: String) {
+        switch action.lowercased() {
+        case "pause":
+            pauseListening(reason: .autoPlayback)
+        case "resume":
+            resumeListening(reason: .autoPlayback)
+        default:
+            break
+        }
     }
 
     // MARK: - Call Sanitization
@@ -931,4 +995,9 @@ final class AssistantCoordinator: ObservableObject {
 
         return result
     }
+}
+
+enum ListeningPauseReason: String {
+    case manual
+    case autoPlayback
 }

@@ -12,7 +12,7 @@ final class AssistantCoordinatorSkillsTests: XCTestCase {
     func testSkillsRegistryHasBuiltInSkills() async {
         let coordinator = AssistantCoordinator()
         let skills = coordinator.skillsRegistry.allSkills
-        XCTAssertEqual(skills.count, 5)
+        XCTAssertEqual(skills.count, 9)
     }
 
     func testProcessActionPlanRespond() async throws {

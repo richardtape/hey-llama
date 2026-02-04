@@ -73,7 +73,6 @@ To run locally:
 
 
 - A memory agent
-- More 'natural' conversation after the initial wake word - not needing to use the wake word again when it makes sense
 - Add a calendar skill
 - Add the ability to message (iMessage) someone
 - Apple Music integration

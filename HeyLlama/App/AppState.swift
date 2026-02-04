@@ -17,6 +17,14 @@ final class AppState: ObservableObject {
     @Published private(set) var llmConfigured: Bool = false
     @Published var requiresOnboarding: Bool = true
     @Published var showOnboarding: Bool = false
+    @Published private(set) var isListeningPaused: Bool = false
+    @Published private(set) var musicNowPlayingTitle: String = ""
+    @Published private(set) var musicNowPlayingArtist: String = ""
+    @Published private(set) var musicIsPlaying: Bool = false
+    @Published private(set) var musicPermissionStatus: Permissions.PermissionStatus = Permissions.checkMusicStatus()
+    @Published private(set) var isMusicSkillEnabled: Bool = false
+
+    private let musicPlaybackController = MusicPlaybackController.shared
 
     private var cancellables = Set<AnyCancellable>()
 
@@ -70,6 +78,30 @@ final class AppState: ObservableObject {
         coordinator.$llmConfigured
             .receive(on: DispatchQueue.main)
             .assign(to: &$llmConfigured)
+
+        coordinator.$isListeningPaused
+            .receive(on: DispatchQueue.main)
+            .assign(to: &$isListeningPaused)
+
+        coordinator.$musicPermissionStatus
+            .receive(on: DispatchQueue.main)
+            .assign(to: &$musicPermissionStatus)
+
+        coordinator.$isMusicSkillEnabled
+            .receive(on: DispatchQueue.main)
+            .assign(to: &$isMusicSkillEnabled)
+
+        musicPlaybackController.$nowPlayingTitle
+            .receive(on: DispatchQueue.main)
+            .assign(to: &$musicNowPlayingTitle)
+
+        musicPlaybackController.$nowPlayingArtist
+            .receive(on: DispatchQueue.main)
+            .assign(to: &$musicNowPlayingArtist)
+
+        musicPlaybackController.$isPlaying
+            .receive(on: DispatchQueue.main)
+            .assign(to: &$musicIsPlaying)
     }
 
     func checkAndShowOnboarding() {
@@ -99,5 +131,58 @@ final class AppState: ObservableObject {
     /// Reload configuration after settings change
     func reloadConfig() async {
         await coordinator.reloadConfig()
+    }
+
+    var isMusicControlsVisible: Bool {
+        isMusicSkillEnabled && musicPermissionStatus == .granted
+    }
+
+    func toggleListeningPaused(_ shouldPause: Bool) {
+        if shouldPause {
+            coordinator.pauseListening(reason: .manual)
+        } else {
+            coordinator.resumeListening(reason: .manual)
+        }
+    }
+
+    func playPauseMusic() {
+        Task { @MainActor in
+            if musicIsPlaying {
+                do {
+                    try await musicPlaybackController.pause()
+                    coordinator.resumeListening(reason: .autoPlayback)
+                } catch {
+                    print("Failed to pause music: \(error)")
+                }
+            } else {
+                do {
+                    _ = await MusicOutputSwitcher.attemptSwitchIfConfigured()
+                    try await musicPlaybackController.play()
+                    coordinator.pauseListening(reason: .autoPlayback)
+                } catch {
+                    print("Failed to play music: \(error)")
+                }
+            }
+        }
+    }
+
+    func playNextTrack() {
+        Task { @MainActor in
+            do {
+                try await musicPlaybackController.next()
+            } catch {
+                print("Failed to skip to next: \(error)")
+            }
+        }
+    }
+
+    func playPreviousTrack() {
+        Task { @MainActor in
+            do {
+                try await musicPlaybackController.previous()
+            } catch {
+                print("Failed to skip to previous: \(error)")
+            }
+        }
     }
 }

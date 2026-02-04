@@ -2,6 +2,7 @@ import AVFoundation
 import AppKit
 import EventKit
 import CoreLocation
+import MusicKit
 
 enum Permissions {
 
@@ -66,6 +67,24 @@ enum Permissions {
 
     static func requestLocationAccess() async -> Bool {
         await LocationPermissionRequester.shared.requestPermission()
+    }
+
+    // MARK: - Music
+
+    static func checkMusicStatus() -> PermissionStatus {
+        switch MusicAuthorization.currentStatus {
+        case .authorized:
+            return .granted
+        case .notDetermined:
+            return .undetermined
+        default:
+            return .denied
+        }
+    }
+
+    static func requestMusicAccess() async -> Bool {
+        let status = await MusicAuthorization.request()
+        return status == .authorized
     }
 
     // MARK: - System Settings

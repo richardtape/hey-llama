@@ -15,6 +15,7 @@ struct HeyLlamaApp: App {
         } label: {
             Image(systemName: appState.statusIcon)
         }
+        .menuBarExtraStyle(.window)
 
         Settings {
             SettingsView()
