@@ -6,7 +6,7 @@ final class SkillsRegistryTests: XCTestCase {
     // MARK: - New Skill Type API Tests
 
     func testRegistryHasAllSkillTypes() {
-        XCTAssertEqual(SkillsRegistry.allSkillTypes.count, 2)
+        XCTAssertEqual(SkillsRegistry.allSkillTypes.count, 5)
     }
 
     func testGetSkillTypeById() {
@@ -94,5 +94,8 @@ final class SkillsRegistryTests: XCTestCase {
     func testSkillTypesIncludeResponseAgentMetadata() {
         XCTAssertTrue(WeatherForecastSkill.includesInResponseAgent)
         XCTAssertTrue(RemindersAddItemSkill.includesInResponseAgent)
+        XCTAssertTrue(RemindersRemoveItemSkill.includesInResponseAgent)
+        XCTAssertTrue(RemindersCompleteItemSkill.includesInResponseAgent)
+        XCTAssertTrue(RemindersReadItemsSkill.includesInResponseAgent)
     }
 }

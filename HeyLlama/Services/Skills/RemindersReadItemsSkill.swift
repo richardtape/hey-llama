@@ -3,40 +3,34 @@ import EventKit
 
 // MARK: - Arguments
 
-/// Arguments for the reminders add item skill.
+/// Arguments for the reminders read items skill.
 ///
 /// IMPORTANT: When modifying this struct, you MUST update `argumentsJSONSchema`
-/// to match. Run `RemindersAddItemSkillTests.testArgumentsMatchJSONSchema` to verify.
-struct RemindersAddItemArguments: Codable {
-    /// The name of the Reminders list to add to
+/// to match. Run `RemindersReadItemsSkillTests.testArgumentsMatchJSONSchema` to verify.
+struct RemindersReadItemsArguments: Codable {
+    /// The name of the Reminders list to read from
     let listName: String
 
-    /// The item/reminder to add
-    let itemName: String
-
-    /// Optional notes for the reminder
-    let notes: String?
-
-    /// Optional due date in ISO8601 format
-    let dueDateISO8601: String?
+    /// Optional status filter: "incomplete" or "completed"
+    let status: String?
 }
 
 // MARK: - Skill Definition
 
-/// Skill to add items to Apple Reminders lists.
-struct RemindersAddItemSkill: Skill {
+/// Skill to read items from Apple Reminders lists.
+struct RemindersReadItemsSkill: Skill {
 
     // MARK: - Skill Metadata
 
-    static let id = "reminders.add_item"
-    static let name = "Add Reminder"
-    static let skillDescription = "Add an item to a Reminders list (e.g., 'add milk to the groceries list'). If the user asks to add multiple items, call this skill once per item."
+    static let id = "reminders.read_items"
+    static let name = "Read Reminders"
+    static let skillDescription = "Read items from a Reminders list (e.g., 'what's on my groceries list'). By default, read incomplete items only. If the user asks for completed items, set status to 'completed'."
     static let requiredPermissions: [SkillPermission] = [.reminders]
     static let includesInResponseAgent = true
 
     // MARK: - Arguments Type Alias
 
-    typealias Arguments = RemindersAddItemArguments
+    typealias Arguments = RemindersReadItemsArguments
 
     // MARK: - JSON Schema
 
@@ -49,22 +43,15 @@ struct RemindersAddItemSkill: Skill {
             "properties": {
                 "listName": {
                     "type": "string",
-                    "description": "The name of the Reminders list to add to"
+                    "description": "The name of the Reminders list to read from"
                 },
-                "itemName": {
+                "status": {
                     "type": "string",
-                "description": "The item/reminder to add (single item only). If the user lists multiple items, make multiple calls."
-            },
-                "notes": {
-                    "type": "string",
-                    "description": "Optional notes for the reminder"
-                },
-                "dueDateISO8601": {
-                    "type": "string",
-                    "description": "Optional due date in ISO8601 format"
+                    "enum": ["incomplete", "completed"],
+                    "description": "Optional filter. Use 'completed' only if the user explicitly asks for completed items. Default is incomplete."
                 }
             },
-            "required": ["listName", "itemName"]
+            "required": ["listName"]
         }
         """
 
@@ -107,35 +94,38 @@ struct RemindersAddItemSkill: Skill {
             return SkillResult(text: message, summary: summary)
         }
 
-        // Create the reminder
-        let reminder = EKReminder(eventStore: eventStore)
-        reminder.title = arguments.itemName
-        reminder.calendar = targetCalendar
+        let reminders = await RemindersHelpers.fetchReminders(
+            in: targetCalendar,
+            eventStore: eventStore
+        )
 
-        if let notes = arguments.notes {
-            reminder.notes = notes
-        }
-
-        if let dueDateString = arguments.dueDateISO8601 {
-            reminder.dueDateComponents = RemindersHelpers.parseDueDateISO8601(dueDateString)
-        }
-
-        // Save the reminder
-        do {
-            try eventStore.save(reminder, commit: true)
-        } catch {
-            throw SkillError.executionFailed("Failed to save reminder: \(error.localizedDescription)")
+        let filter: RemindersHelpers.CompletionFilter
+        if arguments.status?.lowercased() == "completed" {
+            filter = .completed
+        } else {
+            filter = .incomplete
         }
 
-        // Build response
-        var response = "Added '\(arguments.itemName)' to your \(targetCalendar.title) list"
-        if arguments.notes != nil {
-            response += " with notes"
+        let filtered = RemindersHelpers.filterReminders(reminders, by: filter)
+        let statusLabel = filter == .completed ? "completed" : "incomplete"
+
+        guard !filtered.isEmpty else {
+            let message = "You have no \(statusLabel) items in your \(targetCalendar.title) list."
+            let summary = SkillSummary(
+                skillId: Self.id,
+                status: .success,
+                summary: message,
+                details: [
+                    "listName": targetCalendar.title,
+                    "status": statusLabel
+                ]
+            )
+            return SkillResult(text: message, summary: summary)
         }
-        if arguments.dueDateISO8601 != nil {
-            response += " with a due date"
-        }
-        response += "."
+
+        let titles = filtered.compactMap { $0.title }
+        let joinedTitles = titles.joined(separator: ", ")
+        let response = "Here are the \(statusLabel) items in your \(targetCalendar.title) list: \(joinedTitles)."
 
         let summary = SkillSummary(
             skillId: Self.id,
@@ -143,8 +133,8 @@ struct RemindersAddItemSkill: Skill {
             summary: response,
             details: [
                 "listName": targetCalendar.title,
-                "itemName": arguments.itemName,
-                "reminderId": reminder.calendarItemIdentifier
+                "status": statusLabel,
+                "items": titles
             ]
         )
 
@@ -152,8 +142,8 @@ struct RemindersAddItemSkill: Skill {
             text: response,
             data: [
                 "listName": targetCalendar.title,
-                "itemName": arguments.itemName,
-                "reminderId": reminder.calendarItemIdentifier
+                "status": statusLabel,
+                "items": titles
             ],
             summary: summary
         )

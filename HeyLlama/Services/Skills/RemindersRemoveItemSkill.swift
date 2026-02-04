@@ -3,40 +3,34 @@ import EventKit
 
 // MARK: - Arguments
 
-/// Arguments for the reminders add item skill.
+/// Arguments for the reminders remove item skill.
 ///
 /// IMPORTANT: When modifying this struct, you MUST update `argumentsJSONSchema`
-/// to match. Run `RemindersAddItemSkillTests.testArgumentsMatchJSONSchema` to verify.
-struct RemindersAddItemArguments: Codable {
-    /// The name of the Reminders list to add to
+/// to match. Run `RemindersRemoveItemSkillTests.testArgumentsMatchJSONSchema` to verify.
+struct RemindersRemoveItemArguments: Codable {
+    /// The name of the Reminders list to remove from
     let listName: String
 
-    /// The item/reminder to add
+    /// The item/reminder to remove
     let itemName: String
-
-    /// Optional notes for the reminder
-    let notes: String?
-
-    /// Optional due date in ISO8601 format
-    let dueDateISO8601: String?
 }
 
 // MARK: - Skill Definition
 
-/// Skill to add items to Apple Reminders lists.
-struct RemindersAddItemSkill: Skill {
+/// Skill to remove items from Apple Reminders lists.
+struct RemindersRemoveItemSkill: Skill {
 
     // MARK: - Skill Metadata
 
-    static let id = "reminders.add_item"
-    static let name = "Add Reminder"
-    static let skillDescription = "Add an item to a Reminders list (e.g., 'add milk to the groceries list'). If the user asks to add multiple items, call this skill once per item."
+    static let id = "reminders.remove_item"
+    static let name = "Remove Reminder"
+    static let skillDescription = "Remove an item from a Reminders list (e.g., 'remove milk from the groceries list'). If the user asks to remove multiple items, call this skill once per item."
     static let requiredPermissions: [SkillPermission] = [.reminders]
     static let includesInResponseAgent = true
 
     // MARK: - Arguments Type Alias
 
-    typealias Arguments = RemindersAddItemArguments
+    typealias Arguments = RemindersRemoveItemArguments
 
     // MARK: - JSON Schema
 
@@ -49,19 +43,11 @@ struct RemindersAddItemSkill: Skill {
             "properties": {
                 "listName": {
                     "type": "string",
-                    "description": "The name of the Reminders list to add to"
+                    "description": "The name of the Reminders list to remove from"
                 },
                 "itemName": {
                     "type": "string",
-                "description": "The item/reminder to add (single item only). If the user lists multiple items, make multiple calls."
-            },
-                "notes": {
-                    "type": "string",
-                    "description": "Optional notes for the reminder"
-                },
-                "dueDateISO8601": {
-                    "type": "string",
-                    "description": "Optional due date in ISO8601 format"
+                    "description": "The item/reminder to remove (single item only). If the user lists multiple items, make multiple calls."
                 }
             },
             "required": ["listName", "itemName"]
@@ -107,35 +93,62 @@ struct RemindersAddItemSkill: Skill {
             return SkillResult(text: message, summary: summary)
         }
 
-        // Create the reminder
-        let reminder = EKReminder(eventStore: eventStore)
-        reminder.title = arguments.itemName
-        reminder.calendar = targetCalendar
+        let reminders = await RemindersHelpers.fetchReminders(
+            in: targetCalendar,
+            eventStore: eventStore
+        )
 
-        if let notes = arguments.notes {
-            reminder.notes = notes
+        guard !reminders.isEmpty else {
+            let message = "Your \(targetCalendar.title) list is empty."
+            let summary = SkillSummary(
+                skillId: Self.id,
+                status: .failed,
+                summary: message,
+                details: [
+                    "listName": targetCalendar.title
+                ]
+            )
+            return SkillResult(text: message, summary: summary)
         }
 
-        if let dueDateString = arguments.dueDateISO8601 {
-            reminder.dueDateComponents = RemindersHelpers.parseDueDateISO8601(dueDateString)
+        let matches = RemindersHelpers.findReminders(
+            withTitle: arguments.itemName,
+            in: reminders
+        )
+
+        guard let reminder = matches.first else {
+            let closest = RemindersHelpers.closestReminderTitle(
+                to: arguments.itemName,
+                in: reminders
+            )
+            let message = RemindersHelpers.reminderNotFoundMessage(
+                requestedTitle: arguments.itemName,
+                listName: targetCalendar.title,
+                closestMatch: closest
+            )
+            let summary = SkillSummary(
+                skillId: Self.id,
+                status: .failed,
+                summary: message,
+                details: [
+                    "listName": targetCalendar.title,
+                    "itemName": arguments.itemName,
+                    "closestItem": closest ?? ""
+                ]
+            )
+            return SkillResult(text: message, summary: summary)
         }
 
-        // Save the reminder
         do {
-            try eventStore.save(reminder, commit: true)
+            try eventStore.remove(reminder, commit: true)
         } catch {
-            throw SkillError.executionFailed("Failed to save reminder: \(error.localizedDescription)")
+            throw SkillError.executionFailed("Failed to remove reminder: \(error.localizedDescription)")
         }
 
-        // Build response
-        var response = "Added '\(arguments.itemName)' to your \(targetCalendar.title) list"
-        if arguments.notes != nil {
-            response += " with notes"
+        var response = "Removed '\(reminder.title)' from your \(targetCalendar.title) list."
+        if matches.count > 1 {
+            response += " There are still \(matches.count - 1) more with the same name in that list."
         }
-        if arguments.dueDateISO8601 != nil {
-            response += " with a due date"
-        }
-        response += "."
 
         let summary = SkillSummary(
             skillId: Self.id,
@@ -143,8 +156,8 @@ struct RemindersAddItemSkill: Skill {
             summary: response,
             details: [
                 "listName": targetCalendar.title,
-                "itemName": arguments.itemName,
-                "reminderId": reminder.calendarItemIdentifier
+                "itemName": reminder.title,
+                "removedReminderId": reminder.calendarItemIdentifier
             ]
         )
 
@@ -152,8 +165,8 @@ struct RemindersAddItemSkill: Skill {
             text: response,
             data: [
                 "listName": targetCalendar.title,
-                "itemName": arguments.itemName,
-                "reminderId": reminder.calendarItemIdentifier
+                "itemName": reminder.title,
+                "removedReminderId": reminder.calendarItemIdentifier
             ],
             summary: summary
         )

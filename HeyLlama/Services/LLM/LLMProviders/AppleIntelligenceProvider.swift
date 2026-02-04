@@ -251,6 +251,12 @@ actor AppleIntelligenceProvider: LLMServiceProtocol {
             return WeatherForecastTool(recorder: recorder)
         case is RemindersAddItemSkill.Type:
             return RemindersAddItemTool(recorder: recorder)
+        case is RemindersRemoveItemSkill.Type:
+            return RemindersRemoveItemTool(recorder: recorder)
+        case is RemindersCompleteItemSkill.Type:
+            return RemindersCompleteItemTool(recorder: recorder)
+        case is RemindersReadItemsSkill.Type:
+            return RemindersReadItemsTool(recorder: recorder)
         // Future skills:
         // case is CalendarSkill.Type:
         //     return CalendarTool(recorder: recorder)
@@ -335,6 +341,77 @@ actor AppleIntelligenceProvider: LLMServiceProtocol {
             }
             if let dueDate = arguments.dueDateISO8601, !dueDate.isEmpty {
                 args["dueDateISO8601"] = dueDate
+            }
+            await recorder.record(ToolInvocation(skillId: name, arguments: args))
+            return "OK"
+        }
+    }
+
+    /// Reminders remove item tool for Apple's Foundation Models.
+    @available(macOS 26.0, iOS 26.0, *)
+    struct RemindersRemoveItemTool: Tool {
+        let name: String = RemindersRemoveItemSkill.id
+        let description: String = RemindersRemoveItemSkill.skillDescription
+        let recorder: ToolInvocationRecorder
+
+        @Generable
+        struct Arguments: ConvertibleFromGeneratedContent {
+            var listName: String
+            var itemName: String
+        }
+
+        func call(arguments: Arguments) async throws -> String {
+            let args: [String: Any] = [
+                "listName": arguments.listName,
+                "itemName": arguments.itemName
+            ]
+            await recorder.record(ToolInvocation(skillId: name, arguments: args))
+            return "OK"
+        }
+    }
+
+    /// Reminders complete item tool for Apple's Foundation Models.
+    @available(macOS 26.0, iOS 26.0, *)
+    struct RemindersCompleteItemTool: Tool {
+        let name: String = RemindersCompleteItemSkill.id
+        let description: String = RemindersCompleteItemSkill.skillDescription
+        let recorder: ToolInvocationRecorder
+
+        @Generable
+        struct Arguments: ConvertibleFromGeneratedContent {
+            var listName: String
+            var itemName: String
+        }
+
+        func call(arguments: Arguments) async throws -> String {
+            let args: [String: Any] = [
+                "listName": arguments.listName,
+                "itemName": arguments.itemName
+            ]
+            await recorder.record(ToolInvocation(skillId: name, arguments: args))
+            return "OK"
+        }
+    }
+
+    /// Reminders read items tool for Apple's Foundation Models.
+    @available(macOS 26.0, iOS 26.0, *)
+    struct RemindersReadItemsTool: Tool {
+        let name: String = RemindersReadItemsSkill.id
+        let description: String = RemindersReadItemsSkill.skillDescription
+        let recorder: ToolInvocationRecorder
+
+        @Generable
+        struct Arguments: ConvertibleFromGeneratedContent {
+            var listName: String
+            var status: String?
+        }
+
+        func call(arguments: Arguments) async throws -> String {
+            var args: [String: Any] = [
+                "listName": arguments.listName
+            ]
+            if let status = arguments.status, !status.isEmpty {
+                args["status"] = status
             }
             await recorder.record(ToolInvocation(skillId: name, arguments: args))
             return "OK"

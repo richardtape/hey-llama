@@ -4,11 +4,17 @@ import Foundation
 enum RegisteredSkill: CaseIterable, Sendable {
     case weatherForecast
     case remindersAddItem
+    case remindersRemoveItem
+    case remindersCompleteItem
+    case remindersReadItems
 
     var id: String {
         switch self {
         case .weatherForecast: return "weather.forecast"
         case .remindersAddItem: return "reminders.add_item"
+        case .remindersRemoveItem: return "reminders.remove_item"
+        case .remindersCompleteItem: return "reminders.complete_item"
+        case .remindersReadItems: return "reminders.read_items"
         }
     }
 
@@ -16,6 +22,9 @@ enum RegisteredSkill: CaseIterable, Sendable {
         switch self {
         case .weatherForecast: return "Weather Forecast"
         case .remindersAddItem: return "Add Reminder"
+        case .remindersRemoveItem: return "Remove Reminder"
+        case .remindersCompleteItem: return "Complete Reminder"
+        case .remindersReadItems: return "Read Reminders"
         }
     }
 
@@ -25,6 +34,12 @@ enum RegisteredSkill: CaseIterable, Sendable {
             return "Get the weather forecast for today, tomorrow, or the next 7 days"
         case .remindersAddItem:
             return "Add an item to a Reminders list (e.g., 'add milk to the groceries list')"
+        case .remindersRemoveItem:
+            return "Remove an item from a Reminders list (e.g., 'remove milk from the groceries list')"
+        case .remindersCompleteItem:
+            return "Mark an item as complete in a Reminders list (e.g., 'mark milk complete in the groceries list')"
+        case .remindersReadItems:
+            return "Read items from a Reminders list (e.g., 'what's on my groceries list')"
         }
     }
 
@@ -32,6 +47,9 @@ enum RegisteredSkill: CaseIterable, Sendable {
         switch self {
         case .weatherForecast: return [.location]
         case .remindersAddItem: return [.reminders]
+        case .remindersRemoveItem: return [.reminders]
+        case .remindersCompleteItem: return [.reminders]
+        case .remindersReadItems: return [.reminders]
         }
     }
 
@@ -39,6 +57,9 @@ enum RegisteredSkill: CaseIterable, Sendable {
         switch self {
         case .weatherForecast: return true
         case .remindersAddItem: return true
+        case .remindersRemoveItem: return true
+        case .remindersCompleteItem: return true
+        case .remindersReadItems: return true
         }
     }
 
@@ -90,6 +111,58 @@ enum RegisteredSkill: CaseIterable, Sendable {
                 "required": ["listName", "itemName"]
             }
             """
+        case .remindersRemoveItem:
+            return """
+            {
+                "type": "object",
+                "properties": {
+                    "listName": {
+                        "type": "string",
+                        "description": "The name of the Reminders list to remove from"
+                    },
+                    "itemName": {
+                        "type": "string",
+                        "description": "The item/reminder to remove"
+                    }
+                },
+                "required": ["listName", "itemName"]
+            }
+            """
+        case .remindersCompleteItem:
+            return """
+            {
+                "type": "object",
+                "properties": {
+                    "listName": {
+                        "type": "string",
+                        "description": "The name of the Reminders list to mark complete in"
+                    },
+                    "itemName": {
+                        "type": "string",
+                        "description": "The item/reminder to mark complete"
+                    }
+                },
+                "required": ["listName", "itemName"]
+            }
+            """
+        case .remindersReadItems:
+            return """
+            {
+                "type": "object",
+                "properties": {
+                    "listName": {
+                        "type": "string",
+                        "description": "The name of the Reminders list to read from"
+                    },
+                    "status": {
+                        "type": "string",
+                        "enum": ["incomplete", "completed"],
+                        "description": "Optional filter. Use 'completed' only if the user explicitly asks for completed items. Default is incomplete."
+                    }
+                },
+                "required": ["listName"]
+            }
+            """
         }
     }
 
@@ -99,6 +172,12 @@ enum RegisteredSkill: CaseIterable, Sendable {
             return try await WeatherForecastSkill().run(argumentsJSON: argumentsJSON, context: context)
         case .remindersAddItem:
             return try await RemindersAddItemSkill().run(argumentsJSON: argumentsJSON, context: context)
+        case .remindersRemoveItem:
+            return try await RemindersRemoveItemSkill().run(argumentsJSON: argumentsJSON, context: context)
+        case .remindersCompleteItem:
+            return try await RemindersCompleteItemSkill().run(argumentsJSON: argumentsJSON, context: context)
+        case .remindersReadItems:
+            return try await RemindersReadItemsSkill().run(argumentsJSON: argumentsJSON, context: context)
         }
     }
 }
@@ -126,6 +205,9 @@ struct SkillsRegistry {
     static let allSkillTypes: [any Skill.Type] = [
         WeatherForecastSkill.self,
         RemindersAddItemSkill.self,
+        RemindersRemoveItemSkill.self,
+        RemindersCompleteItemSkill.self,
+        RemindersReadItemsSkill.self,
         // Future skills:
         // CalendarSkill.self,
         // MessagesSkill.self,
@@ -257,6 +339,27 @@ struct SkillsRegistry {
                 from: argumentsJSON.data(using: .utf8)!
             )
             return try await RemindersAddItemSkill().execute(arguments: args, context: context)
+
+        case is RemindersRemoveItemSkill.Type:
+            let args = try JSONDecoder().decode(
+                RemindersRemoveItemArguments.self,
+                from: argumentsJSON.data(using: .utf8)!
+            )
+            return try await RemindersRemoveItemSkill().execute(arguments: args, context: context)
+
+        case is RemindersCompleteItemSkill.Type:
+            let args = try JSONDecoder().decode(
+                RemindersCompleteItemArguments.self,
+                from: argumentsJSON.data(using: .utf8)!
+            )
+            return try await RemindersCompleteItemSkill().execute(arguments: args, context: context)
+
+        case is RemindersReadItemsSkill.Type:
+            let args = try JSONDecoder().decode(
+                RemindersReadItemsArguments.self,
+                from: argumentsJSON.data(using: .utf8)!
+            )
+            return try await RemindersReadItemsSkill().execute(arguments: args, context: context)
 
         default:
             throw SkillError.skillNotFound(skillId)
