@@ -405,6 +405,56 @@ final class AssistantCoordinator: ObservableObject {
         // Set state to responding
         state = .responding
 
+        // Handle yes/no/cancel confirmations before invoking the LLM.
+        if let confirmation = conversationManager.getPendingConfirmation() {
+            switch classifyConfirmationReply(commandText) {
+            case .confirm:
+                conversationManager.clearPendingConfirmation()
+                do {
+                    let call = SkillCall(
+                        skillId: confirmation.skillId,
+                        arguments: confirmation.arguments
+                    )
+                    let response = try await executeSkillCalls(
+                        [call],
+                        userRequest: confirmation.originUserRequest
+                    )
+                    conversationManager.addTurn(role: .user, content: commandText)
+                    conversationManager.addTurn(role: .assistant, content: response)
+                    lastResponse = response
+                    state = .listening
+                    return
+                } catch {
+                    print("Error executing confirmed skill: \(error)")
+                    lastResponse = "[Error processing confirmation]"
+                    state = .listening
+                    return
+                }
+
+            case .deny:
+                conversationManager.clearPendingConfirmation()
+                let response = "Okay, I won't do that."
+                conversationManager.addTurn(role: .user, content: commandText)
+                conversationManager.addTurn(role: .assistant, content: response)
+                lastResponse = response
+                state = .listening
+                return
+
+            case .cancel:
+                conversationManager.clearPendingConfirmation()
+                let response = "Okay, cancelled."
+                conversationManager.addTurn(role: .user, content: commandText)
+                conversationManager.addTurn(role: .assistant, content: response)
+                lastResponse = response
+                state = .listening
+                return
+
+            case .unknown:
+                print("[Confirm] Pending confirmation still active; deferring to LLM.")
+                break
+            }
+        }
+
         // Build command context
         let context = CommandContext(
             command: commandText,
@@ -599,6 +649,17 @@ final class AssistantCoordinator: ObservableObject {
                 if let data = result.data {
                     print("[Skill] \(call.skillId) result data: \(data)")
                 }
+                if let data = result.data {
+                    let pending = PendingConfirmation.fromSkillResultData(
+                        data,
+                        defaultExpiry: conversationManager.pendingConfirmationExpiryDate(),
+                        originUserRequest: userRequest
+                    )
+                    if let pending = pending {
+                        conversationManager.setPendingConfirmation(pending)
+                        return pending.prompt
+                    }
+                }
                 results.append(result.text)
 
                 // Use skill's summary if available, otherwise create one
@@ -732,8 +793,94 @@ final class AssistantCoordinator: ObservableObject {
         return collapsed.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
+    // MARK: - Confirmation Handling
+
+    private enum ConfirmationReply {
+        case confirm
+        case deny
+        case cancel
+        case unknown
+    }
+
+    private func classifyConfirmationReply(_ text: String) -> ConfirmationReply {
+        let normalized = normalizeConfirmationText(text)
+        guard !normalized.isEmpty else {
+            return .unknown
+        }
+
+        let tokens = normalized.split(separator: " ").map(String.init)
+        if tokens.isEmpty {
+            return .unknown
+        }
+
+        let cancelPhrases: Set<[String]> = [
+            ["cancel"],
+            ["never", "mind"],
+            ["nevermind"]
+        ]
+        if matchesAnyPhrase(tokens, phrases: cancelPhrases) {
+            return .cancel
+        }
+
+        let yesPhrases: Set<[String]> = [
+            ["yes"],
+            ["yeah"],
+            ["yep"],
+            ["sure"],
+            ["ok"],
+            ["okay"],
+            ["do", "it"],
+            ["please", "do"],
+            ["go", "ahead"]
+        ]
+
+        let noPhrases: Set<[String]> = [
+            ["no"],
+            ["nope"],
+            ["nah"],
+            ["dont"],
+            ["do", "not"]
+        ]
+
+        if matchesAnyPhrase(tokens, phrases: yesPhrases) {
+            return .confirm
+        }
+
+        if matchesAnyPhrase(tokens, phrases: noPhrases) {
+            return .deny
+        }
+
+        return .unknown
+    }
+
+    private func normalizeConfirmationText(_ text: String) -> String {
+        let lowered = text.lowercased()
+        let allowed = CharacterSet.alphanumerics.union(.whitespaces)
+        let filtered = lowered.unicodeScalars.filter { allowed.contains($0) }
+        let collapsed = String(filtered)
+            .split(separator: " ")
+            .joined(separator: " ")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        let ignoreTokens = Set(["please", "thanks", "thank", "you"])
+        let tokens = collapsed.split(separator: " ").map(String.init)
+        let filteredTokens = tokens.filter { !ignoreTokens.contains($0) }
+        return filteredTokens.joined(separator: " ")
+    }
+
+    private func matchesAnyPhrase(_ tokens: [String], phrases: Set<[String]>) -> Bool {
+        for phrase in phrases where tokens == phrase {
+            return true
+        }
+        return false
+    }
+
     private func filterReminderCalls(_ calls: [SkillCall], userRequest: String?) -> [SkillCall] {
         guard let userRequest = userRequest else {
+            return dedupeCalls(calls)
+        }
+
+        if conversationManager.isFollowUpActive() || conversationManager.getPendingConfirmation() != nil {
             return dedupeCalls(calls)
         }
 

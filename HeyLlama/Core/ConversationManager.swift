@@ -5,6 +5,7 @@ import Foundation
 @MainActor
 final class ConversationManager {
     private var turns: [ConversationTurn] = []
+    private var pendingConfirmation: PendingConfirmation?
 
     private let timeoutMinutes: Int
     private let maxTurns: Int
@@ -69,6 +70,32 @@ final class ConversationManager {
         }
 
         return Date().timeIntervalSince(lastActivity) <= Double(followUpWindowSeconds)
+    }
+
+    // MARK: - Pending Confirmations
+
+    func setPendingConfirmation(_ pending: PendingConfirmation) {
+        pendingConfirmation = pending
+        startFollowUpWindow()
+    }
+
+    func getPendingConfirmation() -> PendingConfirmation? {
+        guard let pending = pendingConfirmation else {
+            return nil
+        }
+        if Date() > pending.expiresAt {
+            pendingConfirmation = nil
+            return nil
+        }
+        return pending
+    }
+
+    func clearPendingConfirmation() {
+        pendingConfirmation = nil
+    }
+
+    func pendingConfirmationExpiryDate() -> Date {
+        Date().addingTimeInterval(Double(followUpWindowSeconds))
     }
 
     /// Prune turns that are older than the timeout or exceed max turns

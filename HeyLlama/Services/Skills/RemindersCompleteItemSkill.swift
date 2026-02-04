@@ -90,7 +90,23 @@ struct RemindersCompleteItemSkill: Skill {
                     "availableLists": lookup.availableNames
                 ]
             )
-            return SkillResult(text: message, summary: summary)
+            var data: [String: Any] = [
+                "listName": arguments.listName,
+                "closestList": lookup.closestMatchName ?? "",
+                "availableLists": lookup.availableNames
+            ]
+            if let closest = lookup.closestMatchName {
+                data["confirmationType"] = "yes_no"
+                data["pendingAction"] = [
+                    "skillId": Self.id,
+                    "arguments": [
+                        "listName": closest,
+                        "itemName": arguments.itemName
+                    ],
+                    "prompt": message
+                ]
+            }
+            return SkillResult(text: message, data: data, summary: summary)
         }
 
         let reminders = await RemindersHelpers.fetchReminders(
@@ -136,7 +152,23 @@ struct RemindersCompleteItemSkill: Skill {
                     "closestItem": closest ?? ""
                 ]
             )
-            return SkillResult(text: message, summary: summary)
+            var data: [String: Any] = [
+                "listName": targetCalendar.title,
+                "itemName": arguments.itemName,
+                "closestItem": closest ?? ""
+            ]
+            if let closest = closest {
+                data["confirmationType"] = "yes_no"
+                data["pendingAction"] = [
+                    "skillId": Self.id,
+                    "arguments": [
+                        "listName": targetCalendar.title,
+                        "itemName": closest
+                    ],
+                    "prompt": message
+                ]
+            }
+            return SkillResult(text: message, data: data, summary: summary)
         }
 
         var response: String

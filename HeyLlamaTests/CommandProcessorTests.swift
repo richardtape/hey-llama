@@ -25,7 +25,7 @@ final class CommandProcessorTests: XCTestCase {
 
     func testTypoInWakeWordReturnsNil() {
         let result = processor.extractCommand(from: "Hey Lama what time is it")
-        XCTAssertNil(result)
+        XCTAssertEqual(result, "what time is it")
     }
 
     func testCorrectWakeWordExtractsCommand() {
@@ -60,7 +60,7 @@ final class CommandProcessorTests: XCTestCase {
 
     func testWakeWordMidSentenceExtractsAfter() {
         let result = processor.extractCommand(from: "before Hey Llama after")
-        XCTAssertEqual(result, "after")
+        XCTAssertNil(result)
     }
 
     func testCommandIsTrimmed() {
@@ -71,6 +71,26 @@ final class CommandProcessorTests: XCTestCase {
     func testCommandWithLeadingComma() {
         let result = processor.extractCommand(from: "Hey Llama, what's the weather")
         XCTAssertEqual(result, "what's the weather")
+    }
+
+    func testWakeWordWithCommaSeparatedTokens() {
+        let result = processor.extractCommand(from: "Hey, Lama, what's on my list?")
+        XCTAssertEqual(result, "what's on my list?")
+    }
+
+    func testWakeWordAtEndExtractsBefore() {
+        let result = processor.extractCommand(from: "Please add milk to my list, Llama")
+        XCTAssertEqual(result, "Please add milk to my list")
+    }
+
+    func testWakeWordAtEndWithPoliteSuffix() {
+        let result = processor.extractCommand(from: "Add milk to my list Llama, please")
+        XCTAssertEqual(result, "Add milk to my list")
+    }
+
+    func testWakeWordStartWithPolitePrefix() {
+        let result = processor.extractCommand(from: "Please, Llama, add socks to my shopping list")
+        XCTAssertEqual(result, "add socks to my shopping list")
     }
 
     func testMultipleWakeWordsUsesFirst() {
@@ -90,6 +110,14 @@ final class CommandProcessorTests: XCTestCase {
 
     func testContainsWakeWordFalse() {
         XCTAssertFalse(processor.containsWakeWord(in: "Hello world"))
+    }
+
+    func testContainsWakeWordAtEnd() {
+        XCTAssertTrue(processor.containsWakeWord(in: "What's on my list, llama?"))
+    }
+
+    func testContainsWakeWordWithPolitePrefix() {
+        XCTAssertTrue(processor.containsWakeWord(in: "Please, llama, add milk"))
     }
 
     func testContainsWakeWordCaseInsensitive() {

@@ -104,7 +104,30 @@ struct RemindersAddItemSkill: Skill {
                     "availableLists": lookup.availableNames
                 ]
             )
-            return SkillResult(text: message, summary: summary)
+            var data: [String: Any] = [
+                "listName": arguments.listName,
+                "closestList": lookup.closestMatchName ?? "",
+                "availableLists": lookup.availableNames
+            ]
+            if let closest = lookup.closestMatchName {
+                var args: [String: Any] = [
+                    "listName": closest,
+                    "itemName": arguments.itemName
+                ]
+                if let notes = arguments.notes {
+                    args["notes"] = notes
+                }
+                if let dueDate = arguments.dueDateISO8601 {
+                    args["dueDateISO8601"] = dueDate
+                }
+                data["confirmationType"] = "yes_no"
+                data["pendingAction"] = [
+                    "skillId": Self.id,
+                    "arguments": args,
+                    "prompt": message
+                ]
+            }
+            return SkillResult(text: message, data: data, summary: summary)
         }
 
         // Create the reminder
