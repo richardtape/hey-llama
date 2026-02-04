@@ -13,6 +13,11 @@ final class MusicPlaybackController: ObservableObject {
 
     private let player = ApplicationMusicPlayer.shared
     private var pollTask: Task<Void, Never>?
+    private var lastReportedTitle: String = ""
+    private var lastQueuedTitle: String = ""
+    private var lastQueuedArtist: String = ""
+    private var queuedItems: [(title: String, artist: String)] = []
+    private var queuedIndex: Int = 0
 
     private init() {
         startPolling()
@@ -20,27 +25,40 @@ final class MusicPlaybackController: ObservableObject {
 
     func playQueue(_ tracks: [Track]) async throws {
         guard !tracks.isEmpty else { return }
+        queuedItems = tracks.map { ($0.title, $0.artistName) }
+        queuedIndex = 0
+        setQueuedFallback()
         player.queue = ApplicationMusicPlayer.Queue(for: tracks)
         try await player.play()
         await refreshNowPlaying()
+        await refreshNowPlayingAfterDelay()
     }
 
     func playSong(_ song: Song) async throws {
+        queuedItems = [(song.title, song.artistName)]
+        queuedIndex = 0
+        setQueuedFallback()
         player.queue = ApplicationMusicPlayer.Queue(for: [song])
         try await player.play()
         await refreshNowPlaying()
+        await refreshNowPlayingAfterDelay()
     }
 
     func playSongs(_ songs: [Song]) async throws {
         guard !songs.isEmpty else { return }
+        queuedItems = songs.map { ($0.title, $0.artistName) }
+        queuedIndex = 0
+        setQueuedFallback()
         player.queue = ApplicationMusicPlayer.Queue(for: songs)
         try await player.play()
         await refreshNowPlaying()
+        await refreshNowPlayingAfterDelay()
     }
 
     func play() async throws {
         try await player.play()
         await refreshNowPlaying()
+        await refreshNowPlayingAfterDelay()
     }
 
     func pause() async throws {
@@ -50,20 +68,28 @@ final class MusicPlaybackController: ObservableObject {
 
     func next() async throws {
         try await player.skipToNextEntry()
+        advanceQueueIndex(by: 1)
         await refreshNowPlaying()
+        await refreshNowPlayingAfterDelay()
     }
 
     func previous() async throws {
         try await player.skipToPreviousEntry()
+        advanceQueueIndex(by: -1)
         await refreshNowPlaying()
+        await refreshNowPlayingAfterDelay()
     }
 
     func refreshNowPlaying() async {
-        let entry = player.queue.currentEntry
+        let entry = player.queue.currentEntry ?? player.queue.entries.first
         if let song = entry?.item as? Song {
             nowPlayingTitle = song.title
             nowPlayingArtist = song.artistName
             nowPlayingAlbum = song.albumTitle ?? ""
+        } else if let track = entry?.item as? Track {
+            nowPlayingTitle = track.title
+            nowPlayingArtist = track.artistName
+            nowPlayingAlbum = track.albumTitle ?? ""
         } else if let playlist = entry?.item as? Playlist {
             nowPlayingTitle = playlist.name
             nowPlayingArtist = "Playlist"
@@ -73,12 +99,55 @@ final class MusicPlaybackController: ObservableObject {
             nowPlayingArtist = album.artistName
             nowPlayingAlbum = album.title
         } else {
-            nowPlayingTitle = ""
-            nowPlayingArtist = ""
-            nowPlayingAlbum = ""
+            if !lastQueuedTitle.isEmpty {
+                nowPlayingTitle = lastQueuedTitle
+                nowPlayingArtist = lastQueuedArtist
+                nowPlayingAlbum = ""
+            } else {
+                nowPlayingTitle = ""
+                nowPlayingArtist = ""
+                nowPlayingAlbum = ""
+            }
         }
 
         isPlaying = player.state.playbackStatus == .playing
+
+        if nowPlayingTitle != lastReportedTitle {
+            lastReportedTitle = nowPlayingTitle
+            let typeName = entry?.item.map { String(describing: type(of: $0)) } ?? "nil"
+            print("[Music] Now playing update: title=\"\(nowPlayingTitle)\", artist=\"\(nowPlayingArtist)\", itemType=\(typeName)")
+        } else if entry == nil {
+            print("[Music] Now playing entry is nil; queue entries: \(player.queue.entries.count)")
+        }
+    }
+
+    private func setQueuedFallback() {
+        guard queuedIndex >= 0, queuedIndex < queuedItems.count else {
+            lastQueuedTitle = ""
+            lastQueuedArtist = ""
+            return
+        }
+        let item = queuedItems[queuedIndex]
+        lastQueuedTitle = item.title
+        lastQueuedArtist = item.artist
+    }
+
+    private func advanceQueueIndex(by delta: Int) {
+        guard !queuedItems.isEmpty else { return }
+        let nextIndex = queuedIndex + delta
+        if nextIndex < 0 {
+            queuedIndex = 0
+        } else if nextIndex >= queuedItems.count {
+            queuedIndex = queuedItems.count - 1
+        } else {
+            queuedIndex = nextIndex
+        }
+        setQueuedFallback()
+    }
+
+    private func refreshNowPlayingAfterDelay() async {
+        try? await Task.sleep(nanoseconds: 300_000_000)
+        await refreshNowPlaying()
     }
 
     private func startPolling() {
